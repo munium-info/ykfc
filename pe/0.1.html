@@ -1450,7 +1450,7 @@
 
             if (leftJoystick.active) {
                 cameraState.yaw += leftJoystick.x * 1.2 * safeDelta;
-                cameraState.pitch += leftJoystick.y * 1.2 * safeDelta;
+                cameraState.pitch -= leftJoystick.y * 1.2 * safeDelta;
                 cameraState.pitch = Math.max(0.05, Math.min(1.4, cameraState.pitch));
             }
 
