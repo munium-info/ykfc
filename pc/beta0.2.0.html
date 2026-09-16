@@ -1,0 +1,1676 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>遥控帆船航模模拟器 - PC 版</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Arial', sans-serif; background: #000; }
+        canvas { display: block; }
+        #info {
+            position: absolute; top: 20px; left: 20px;
+            background: rgba(0,0,0,0.7); color: #fff;
+            padding: 12px 20px; border-radius: 30px;
+            pointer-events: none; z-index: 100;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.3);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            font-size: 14px;
+        }
+        #controls {
+            position: absolute; bottom: 30px; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.65); color: #fff;
+            padding: 15px 25px; border-radius: 50px;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.3);
+            display: flex; gap: 30px; z-index: 100;
+            font-size: 15px; letter-spacing: 1px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            flex-wrap: wrap; justify-content: center;
+        }
+        .key {
+            background: rgba(255,255,255,0.2);
+            border-radius: 8px; padding: 4px 10px;
+            font-weight: bold; color: #aaddff;
+            border: 1px solid rgba(255,255,255,0.3);
+            font-size: 14px;
+        }
+        #hud {
+            position: absolute; top: 20px; right: 20px;
+            background: rgba(0,0,0,0.7); color: #fff;
+            padding: 15px 20px; border-radius: 16px;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.3);
+            z-index: 100; font-size: 14px;
+            min-width: 210px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            pointer-events: none;
+        }
+        #hud .row {
+            display: flex; justify-content: space-between;
+            margin: 7px 0; align-items: center;
+        }
+        #hud .label { color: #aaddff; }
+        #hud .value { font-weight: bold; color: #fff; }
+        .bar-container {
+            width: 100%; height: 8px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 4px; overflow: hidden; margin: 3px 0;
+        }
+        .bar { height: 100%; border-radius: 4px; transition: width 0.15s; }
+        #wind-bar { background: linear-gradient(90deg, #44aaff, #88ddff); width: 50%; }
+        #sail-bar { background: linear-gradient(90deg, #ffaa44, #ffdd88); width: 50%; }
+        #wind-compass {
+            width: 90px; height: 90px; margin: 8px auto;
+            position: relative; border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.3);
+            background: rgba(0,0,0,0.3);
+        }
+        #wind-compass .cardinal {
+            position: absolute; font-size: 10px;
+            color: rgba(255,255,255,0.6);
+            font-weight: bold;
+            transform: translate(-50%, -50%);
+        }
+        #wind-compass .n { top: 10%; left: 50%; color: #ff8888; }
+        #wind-compass .s { top: 90%; left: 50%; }
+        #wind-compass .e { top: 50%; left: 90%; }
+        #wind-compass .w { top: 50%; left: 10%; }
+        #wind-arrow {
+            position: absolute; top: 50%; left: 50%;
+            width: 0; height: 0;
+            border-left: 7px solid transparent;
+            border-right: 7px solid transparent;
+            border-bottom: 30px solid #44ddff;
+            transform-origin: 50% 100%;
+            transform: translate(-50%, -100%) rotate(0deg);
+            transition: transform 0.4s;
+            filter: drop-shadow(0 0 4px #44ddff);
+        }
+        #wind-dir-text {
+            text-align: center; font-size: 12px;
+            color: #88ddff; margin-top: 2px;
+        }
+        .sail-indicator {
+            color: #ffdd66; font-size: 13px;
+            text-align: center; margin-top: 6px;
+            min-height: 16px;
+        }
+        #rudder-indicator {
+            display: flex; justify-content: space-between;
+            align-items: center; margin-top: 6px;
+            font-size: 12px; color: #aaddff;
+        }
+        #rudder-indicator .rudder-track {
+            flex: 1; height: 6px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 3px; position: relative; margin: 0 8px;
+        }
+        #rudder-knob {
+            position: absolute; top: 50%;
+            left: 50%; width: 12px; height: 12px;
+            background: #ffaa44; border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: left 0.1s;
+        }
+        #speed-display {
+            font-size: 22px; color: #88ff88;
+            text-align: center; margin: 4px 0;
+        }
+        #sail-visual-info {
+            font-size: 11px; color: #ffaa66;
+            text-align: center; margin-top: 4px;
+        }
+        #point-of-sail {
+            font-size: 11px; color: #aaffaa;
+            text-align: center; margin-top: 2px;
+            min-height: 14px;
+        }
+        #heel-info {
+            font-size: 11px; color: #88ccff;
+            text-align: center; margin-top: 2px;
+        }
+        #race-panel {
+            position: absolute; top: 20px; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.75); color: #fff;
+            padding: 12px 24px; border-radius: 16px;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(100,200,255,0.4);
+            z-index: 100; font-size: 14px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            display: flex; gap: 30px;
+            align-items: center;
+            pointer-events: none;
+        }
+        #race-panel .stat {
+            display: flex; flex-direction: column;
+            align-items: center;
+        }
+        #race-panel .stat .lbl {
+            font-size: 11px; color: #88bbdd;
+            letter-spacing: 1px;
+        }
+        #race-panel .stat .val {
+            font-size: 20px; font-weight: bold;
+            color: #88ff88; margin-top: 2px;
+            font-family: monospace;
+        }
+        #race-panel .stat .val.warn {
+            color: #ffaa44;
+        }
+        #camera-hint {
+            position: absolute; bottom: 110px; right: 30px;
+            background: rgba(0,0,0,0.55); color: #aaddff;
+            padding: 10px 16px; border-radius: 12px;
+            font-size: 12px; z-index: 100;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.2);
+            text-align: left;
+            line-height: 1.8;
+            pointer-events: none;
+        }
+        #camera-hint .kbd {
+            display: inline-block;
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-size: 11px;
+            font-weight: bold;
+            color: #ffdd66;
+            margin: 0 1px;
+        }
+        #camera-mode {
+            position: absolute; bottom: 220px; right: 30px;
+            padding: 8px 16px; border-radius: 20px;
+            font-size: 13px; z-index: 100;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.3);
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+        }
+        #camera-mode.follow {
+            background: rgba(68, 221, 255, 0.3);
+            color: #44ddff;
+            border-color: #44ddff;
+        }
+        #camera-mode.free {
+            background: rgba(255, 170, 68, 0.2);
+            color: #ffaa44;
+            border-color: #ffaa44;
+        }
+        #crosshair {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px; height: 20px;
+            z-index: 90;
+            pointer-events: none;
+            opacity: 0.7;
+        }
+        #crosshair::before, #crosshair::after {
+            content: '';
+            position: absolute;
+            background: rgba(255,255,255,0.8);
+            box-shadow: 0 0 3px rgba(0,0,0,0.8);
+        }
+        #crosshair::before {
+            top: 50%; left: 0;
+            width: 100%; height: 2px;
+            transform: translateY(-50%);
+        }
+        #crosshair::after {
+            left: 50%; top: 0;
+            width: 2px; height: 100%;
+            transform: translateX(-50%);
+        }
+        #start-overlay {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex; justify-content: center;
+            align-items: center; z-index: 200;
+            cursor: pointer; transition: opacity 0.3s;
+            backdrop-filter: blur(8px);
+        }
+        #start-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        #start-panel {
+            text-align: center; color: #fff;
+            padding: 40px 60px;
+            background: rgba(20,40,60,0.8);
+            border-radius: 20px;
+            border: 1px solid rgba(100,200,255,0.4);
+            box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+            max-width: 600px;
+        }
+        #start-panel h1 {
+            font-size: 32px; margin: 0 0 10px 0;
+            color: #88ddff; letter-spacing: 2px;
+        }
+        #start-panel .subtitle {
+            color: #aaddff; font-size: 14px;
+            margin-bottom: 30px;
+        }
+        #start-panel .click-hint {
+            font-size: 18px; color: #ffdd66;
+            margin-top: 20px;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        #start-panel .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin: 20px 0;
+            text-align: left;
+            font-size: 14px;
+        }
+        #start-panel .controls-grid .item {
+            background: rgba(255,255,255,0.08);
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.15);
+        }
+        #start-panel .kbd {
+            display: inline-block;
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-weight: bold;
+            color: #ffdd66;
+            font-family: monospace;
+            margin-right: 4px;
+        }
+        #hit-flash {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(255, 80, 80, 0.4);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 80;
+            transition: opacity 0.15s;
+        }
+        #checkpoint-toast {
+            position: absolute;
+            top: 40%; left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            background: rgba(68, 255, 136, 0.9);
+            color: #003322;
+            padding: 16px 32px;
+            border-radius: 16px;
+            font-size: 22px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            z-index: 150;
+            pointer-events: none;
+            opacity: 0;
+            transition: all 0.3s;
+            box-shadow: 0 0 40px rgba(68, 255, 136, 0.6);
+            border: 2px solid #aaffcc;
+        }
+        #checkpoint-toast.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+        #hit-toast {
+            position: absolute;
+            top: 55%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 80, 80, 0.9);
+            color: #fff;
+            padding: 10px 24px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            z-index: 150;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            box-shadow: 0 0 30px rgba(255, 80, 80, 0.6);
+        }
+        #hit-toast.show {
+            opacity: 1;
+        }
+        #pause-overlay {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: flex; justify-content: center;
+            align-items: center; z-index: 190;
+            backdrop-filter: blur(6px);
+            cursor: pointer;
+        }
+        #pause-overlay.hidden {
+            display: none;
+        }
+        #pause-panel {
+            text-align: center; color: #fff;
+            padding: 40px 60px;
+            background: rgba(20,40,60,0.9);
+            border-radius: 20px;
+            border: 1px solid rgba(100,200,255,0.4);
+            box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+        }
+        #pause-panel h2 {
+            font-size: 36px; margin: 0 0 16px 0;
+            color: #88ddff; letter-spacing: 4px;
+        }
+        #pause-panel .click-hint {
+            font-size: 16px; color: #ffdd66;
+            animation: pulse 1.5s infinite;
+        }
+        #next-target {
+            position: absolute;
+            top: 90px; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 221, 0, 0.2);
+            color: #ffdd00;
+            padding: 6px 16px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: bold;
+            z-index: 100;
+            border: 1px solid rgba(255, 221, 0, 0.5);
+            backdrop-filter: blur(5px);
+            pointer-events: none;
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+    <div id="hit-flash"></div>
+    <div id="checkpoint-toast"></div>
+    <div id="hit-toast">💥 撞到浮标！</div>
+
+    <div id="pause-overlay" class="hidden">
+        <div id="pause-panel">
+            <h2>⏸ 已暂停</h2>
+            <div class="click-hint">点击继续游戏</div>
+        </div>
+    </div>
+
+    <div id="start-overlay">
+        <div id="start-panel">
+            <h1>⛵ 遥控帆船</h1>
+            <div class="subtitle">F5 三角航线 - 起航 → 1 → 2 → 3 → 终点</div>
+            <div class="controls-grid">
+                <div class="item"><span class="kbd">W A S D</span> 移动相机</div>
+                <div class="item"><span class="kbd">鼠标</span> 转动视角</div>
+                <div class="item"><span class="kbd">Q / E</span> 升降相机</div>
+                <div class="item"><span class="kbd">Shift</span> 加速移动</div>
+                <div class="item"><span class="kbd">← →</span> 控制船舵</div>
+                <div class="item"><span class="kbd">↑ ↓</span> 收帆 / 放帆</div>
+                <div class="item"><span class="kbd">F</span> 切换跟随视角</div>
+                <div class="item"><span class="kbd">ESC</span> 暂停 / 显示光标</div>
+            </div>
+            <div class="click-hint">点击画面开始</div>
+        </div>
+    </div>
+
+    <div id="crosshair" style="display: none;"></div>
+
+    <div id="info">⛵ F5 三角航线 | ←/→ 舵 | ↑/↓ 帆 | ESC 暂停</div>
+    <div id="camera-hint">
+        <span class="kbd">W</span><span class="kbd">A</span><span class="kbd">S</span><span class="kbd">D</span> 移动<br>
+        <span class="kbd">Q</span>/<span class="kbd">E</span> 升降 | <span class="kbd">Shift</span> 加速<br>
+        <span class="kbd">F</span> 跟随 | <span class="kbd">ESC</span> 暂停
+    </div>
+    <div id="camera-mode" class="free">📷 自由视角</div>
+
+    <div id="next-target">🎯 下一个目标：起航线</div>
+
+    <div id="race-panel">
+        <div class="stat">
+            <div class="lbl">已绕标</div>
+            <div class="val" id="checkpoint-count">0 / 3</div>
+        </div>
+        <div class="stat">
+            <div class="lbl">圈数</div>
+            <div class="val" id="lap-count">0</div>
+        </div>
+        <div class="stat">
+            <div class="lbl">用时</div>
+            <div class="val" id="race-time">00.0</div>
+        </div>
+        <div class="stat">
+            <div class="lbl">状态</div>
+            <div class="val" id="race-status" style="font-size:14px;">待出发</div>
+        </div>
+    </div>
+
+    <div id="hud">
+        <div id="speed-display"><span id="speed-value">0.0</span> <span style="font-size:12px;">节</span></div>
+        <div class="row">
+            <span class="label">风力</span>
+            <span class="value"><span id="wind-power-value">5.0</span> 级</span>
+        </div>
+        <div class="bar-container"><div class="bar" id="wind-bar"></div></div>
+        <div id="wind-compass">
+            <span class="cardinal n">N</span>
+            <span class="cardinal s">S</span>
+            <span class="cardinal e">E</span>
+            <span class="cardinal w">W</span>
+            <div id="wind-arrow"></div>
+        </div>
+        <div id="wind-dir-text">风向：<span id="wind-dir-value">--</span></div>
+        <div class="row">
+            <span class="label">收帆</span>
+            <span class="value"><span id="sail-value">50</span>%</span>
+        </div>
+        <div class="bar-container"><div class="bar" id="sail-bar"></div></div>
+        <div class="sail-indicator" id="sail-status">帆已调整</div>
+        <div id="point-of-sail">航向：--</div>
+        <div id="sail-visual-info">帆角：<span id="sail-angle-value">0</span>°</div>
+        <div id="heel-info">横倾：<span id="heel-value">0</span>°</div>
+        <div id="rudder-indicator">
+            <span>左</span>
+            <div class="rudder-track"><div id="rudder-knob"></div></div>
+            <span>右</span>
+        </div>
+    </div>
+    <div id="controls">
+        <span><span class="key">←</span> <span class="key">→</span> 舵</span>
+        <span><span class="key">↑</span> 收帆</span>
+        <span><span class="key">↓</span> 放帆</span>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB);
+        scene.fog = new THREE.Fog(0x87CEEB, 40, 150);
+
+        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 10, 15);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.shadowMap.bias = 0.0001;
+        document.body.appendChild(renderer.domElement);
+
+        let isPaused = false;
+        const pauseOverlay = document.getElementById('pause-overlay');
+
+        function pauseGame() {
+            isPaused = true;
+            pauseOverlay.classList.remove('hidden');
+            if (document.pointerLockElement) document.exitPointerLock();
+        }
+        function resumeGame() {
+            isPaused = false;
+            pauseOverlay.classList.add('hidden');
+            renderer.domElement.requestPointerLock();
+        }
+        pauseOverlay.addEventListener('click', resumeGame);
+
+        const player = {
+            position: new THREE.Vector3(0, 10, 15),
+            yaw: 0,
+            pitch: -0.4,
+            baseSpeed: 12,
+            fastMultiplier: 3.0
+        };
+
+        const MOUSE_SENSITIVITY = 0.0022;
+        let isPointerLocked = false;
+        const startOverlay = document.getElementById('start-overlay');
+        const crosshair = document.getElementById('crosshair');
+
+        startOverlay.addEventListener('click', () => {
+            renderer.domElement.requestPointerLock();
+        });
+        renderer.domElement.addEventListener('click', () => {
+            if (!isPointerLocked && !isPaused) {
+                renderer.domElement.requestPointerLock();
+            }
+        });
+        document.addEventListener('pointerlockchange', () => {
+            isPointerLocked = document.pointerLockElement === renderer.domElement;
+            if (isPointerLocked) {
+                startOverlay.classList.add('hidden');
+                crosshair.style.display = 'block';
+            } else {
+                if (!isPaused) pauseGame();
+                crosshair.style.display = 'none';
+            }
+        });
+        document.addEventListener('mousemove', (e) => {
+            if (!isPointerLocked || isPaused) return;
+            player.yaw -= e.movementX * MOUSE_SENSITIVITY;
+            player.pitch -= e.movementY * MOUSE_SENSITIVITY;
+            const maxPitch = Math.PI / 2 - 0.05;
+            player.pitch = Math.max(-maxPitch, Math.min(maxPitch, player.pitch));
+        });
+
+        scene.add(new THREE.AmbientLight(0x505070));
+        const sunLight = new THREE.DirectionalLight(0xfff5e6, 1.2);
+        sunLight.position.set(10, 20, 5);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 1024;
+        sunLight.shadow.mapSize.height = 1024;
+        const d = 40;
+        sunLight.shadow.camera.left = -d;
+        sunLight.shadow.camera.right = d;
+        sunLight.shadow.camera.top = d;
+        sunLight.shadow.camera.bottom = -d;
+        sunLight.shadow.camera.near = 1;
+        sunLight.shadow.camera.far = 80;
+        sunLight.shadow.bias = -0.0005;
+        scene.add(sunLight);
+
+        const backLight = new THREE.DirectionalLight(0xaaccff, 0.5);
+        backLight.position.set(-10, 5, -10);
+        scene.add(backLight);
+
+        const waterGeometry = new THREE.PlaneGeometry(120, 120, 64, 64);
+        const waterMaterial = new THREE.MeshPhongMaterial({
+            color: 0x2a6f97, emissive: 0x0a1f2e, specular: 0xffffff,
+            shininess: 60, transparent: true, opacity: 0.85, side: THREE.DoubleSide
+        });
+        const water = new THREE.Mesh(waterGeometry, waterMaterial);
+        water.rotation.x = -Math.PI / 2;
+        water.receiveShadow = true;
+        scene.add(water);
+
+        const gridHelper = new THREE.GridHelper(120, 40, 0x88ccff, 0x4488aa);
+        gridHelper.position.y = 0.01;
+        scene.add(gridHelper);
+
+        const sparkleGeometry = new THREE.BufferGeometry();
+        const sparkleCount = 1000;
+        const sparklePositions = new Float32Array(sparkleCount * 3);
+        for (let i = 0; i < sparkleCount; i++) {
+            sparklePositions[i*3] = (Math.random() - 0.5) * 120;
+            sparklePositions[i*3+1] = 0.05 + Math.random() * 0.1;
+            sparklePositions[i*3+2] = (Math.random() - 0.5) * 120;
+        }
+        sparkleGeometry.setAttribute('position', new THREE.BufferAttribute(sparklePositions, 3));
+        const sparkles = new THREE.Points(sparkleGeometry, new THREE.PointsMaterial({
+            color: 0xffffff, size: 0.15, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending
+        }));
+        scene.add(sparkles);
+
+        const windArrowGroup = new THREE.Group();
+        const windArrowMat = new THREE.MeshStandardMaterial({ color: 0x44ddff, emissive: 0x2266aa, emissiveIntensity: 0.6 });
+        const hShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.5, 8), windArrowMat);
+        hShaft.rotation.z = Math.PI / 2;
+        hShaft.position.x = 1.25;
+        windArrowGroup.add(hShaft);
+        const hHead = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.8, 8), windArrowMat);
+        hHead.rotation.z = -Math.PI / 2;
+        hHead.position.x = 2.9;
+        windArrowGroup.add(hHead);
+        windArrowGroup.position.set(0, 5, 0);
+        scene.add(windArrowGroup);
+
+        const windParticleCount = 400;
+        const windParticleGeo = new THREE.BufferGeometry();
+        const windParticlePositions = new Float32Array(windParticleCount * 3);
+        const windParticleSpeeds = new Float32Array(windParticleCount);
+        for (let i = 0; i < windParticleCount; i++) {
+            windParticlePositions[i*3] = (Math.random() - 0.5) * 80;
+            windParticlePositions[i*3+1] = 0.5 + Math.random() * 8;
+            windParticlePositions[i*3+2] = (Math.random() - 0.5) * 80;
+            windParticleSpeeds[i] = 0.5 + Math.random() * 0.5;
+        }
+        windParticleGeo.setAttribute('position', new THREE.BufferAttribute(windParticlePositions, 3));
+        const windParticles = new THREE.Points(windParticleGeo, new THREE.PointsMaterial({
+            color: 0xaaddff, size: 0.12, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending
+        }));
+        scene.add(windParticles);
+
+        function createCloud(x, y, z) {
+            const g = new THREE.Group();
+            const m = new THREE.MeshPhongMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, emissive: 0xaaaaaa });
+            const geo = new THREE.SphereGeometry(1, 7, 7);
+            const p1 = new THREE.Mesh(geo, m); p1.scale.set(1.2, 0.8, 0.8);
+            const p2 = new THREE.Mesh(geo, m); p2.scale.set(0.9, 0.6, 0.6); p2.position.set(1.2, 0.2, 0.3);
+            const p3 = new THREE.Mesh(geo, m); p3.scale.set(1.1, 0.7, 0.7); p3.position.set(-1.1, 0.1, -0.2);
+            g.add(p1, p2, p3); g.position.set(x, y, z);
+            return g;
+        }
+        scene.add(createCloud(-20, 15, -25));
+        scene.add(createCloud(15, 16, -30));
+        scene.add(createCloud(25, 12, 20));
+        scene.add(createCloud(-25, 13, 25));
+
+        const buoys = [];
+        const BUOY_RADIUS = 0.7;
+        const BOAT_RADIUS = 1.0;
+        const CHECKPOINT_RADIUS = 2.5;
+
+        function createBuoy(x, z, color, type, label) {
+            const group = new THREE.Group();
+            const baseMat = new THREE.MeshStandardMaterial({
+                color: color, emissive: color, emissiveIntensity: 0.5,
+                roughness: 0.5, metalness: 0.2
+            });
+            const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.5, 20, 20), baseMat);
+            sphere.position.y = 0.5;
+            sphere.castShadow = true; sphere.receiveShadow = true;
+            group.add(sphere);
+
+            const poleMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x444444 });
+            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.4, 8), poleMat);
+            pole.position.y = 1.4;
+            pole.castShadow = true;
+            group.add(pole);
+
+            if (label) {
+                const canvas = document.createElement('canvas');
+                canvas.width = 128; canvas.height = 128;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(64, 64, 56, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = type === 'start' ? '#cc8800' : '#cc0000';
+                ctx.font = 'bold 90px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(label, 64, 68);
+                const texture = new THREE.CanvasTexture(canvas);
+                const spriteMat = new THREE.SpriteMaterial({ map: texture, depthTest: false });
+                const sprite = new THREE.Sprite(spriteMat);
+                sprite.scale.set(1.4, 1.4, 1);
+                sprite.position.y = 2.6;
+                group.add(sprite);
+            }
+
+            const ringMat = new THREE.MeshStandardMaterial({
+                color: color, emissive: color, emissiveIntensity: 0.6,
+                transparent: true, opacity: 0.7
+            });
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.08, 8, 20), ringMat);
+            ring.rotation.x = -Math.PI / 2;
+            ring.position.y = 0.05;
+            group.add(ring);
+
+            group.position.set(x, 0, z);
+            scene.add(group);
+
+            const buoyData = {
+                mesh: group, x, z,
+                radius: BUOY_RADIUS,
+                type, label,
+                baseY: 0,
+                phaseOffset: Math.random() * Math.PI * 2,
+                visited: false,
+                stuckTimer: 0,
+                sphereMaterial: baseMat,
+                ringMat: ringMat,
+                checkpointZone: null
+            };
+            buoys.push(buoyData);
+            return group;
+        }
+
+        function createCheckpointZone(x, z, radius, label) {
+            const group = new THREE.Group();
+
+            const ringGeo = new THREE.RingGeometry(radius - 0.15, radius, 64);
+            const ringMat = new THREE.MeshBasicMaterial({
+                color: 0xffaa00,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.35,
+                depthWrite: false
+            });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.rotation.x = -Math.PI / 2;
+            ring.position.y = 0.08;
+            group.add(ring);
+
+            const dashCount = 24;
+            const dashMat = new THREE.MeshBasicMaterial({
+                color: 0xffdd44,
+                transparent: true,
+                opacity: 0.6,
+                depthWrite: false
+            });
+            const dashes = [];
+            for (let i = 0; i < dashCount; i++) {
+                const angle = (i / dashCount) * Math.PI * 2;
+                const dashGeo = new THREE.PlaneGeometry(radius * 0.15, 0.15);
+                const dash = new THREE.Mesh(dashGeo, dashMat);
+                dash.rotation.x = -Math.PI / 2;
+                dash.rotation.z = -angle;
+                dash.position.set(
+                    Math.cos(angle) * (radius - 0.3),
+                    0.09,
+                    Math.sin(angle) * (radius - 0.3)
+                );
+                group.add(dash);
+                dashes.push(dash);
+            }
+
+            const fillGeo = new THREE.CircleGeometry(radius - 0.15, 32);
+            const fillMat = new THREE.MeshBasicMaterial({
+                color: 0xffaa00,
+                transparent: true,
+                opacity: 0.06,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+            const fill = new THREE.Mesh(fillGeo, fillMat);
+            fill.rotation.x = -Math.PI / 2;
+            fill.position.y = 0.07;
+            group.add(fill);
+
+            group.position.set(x, 0, z);
+            scene.add(group);
+
+            return {
+                group: group,
+                ring: ring,
+                ringMat: ringMat,
+                fill: fill,
+                fillMat: fillMat,
+                dashes: dashes
+            };
+        }
+
+        function createStartLineZone() {
+            const group = new THREE.Group();
+            const width = START_LINE_X_RANGE * 2;
+            const depth = 1.5;
+
+            const bandGeo = new THREE.PlaneGeometry(width, depth);
+            const bandMat = new THREE.MeshBasicMaterial({
+                color: 0xffff00,
+                transparent: true,
+                opacity: 0.15,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+            const band = new THREE.Mesh(bandGeo, bandMat);
+            band.rotation.x = -Math.PI / 2;
+            band.position.y = 0.06;
+            group.add(band);
+
+            const dashCount = 30;
+            const dashMat = new THREE.MeshBasicMaterial({
+                color: 0xffff00,
+                transparent: true,
+                opacity: 0.5,
+                depthWrite: false
+            });
+            for (let side = 0; side < 2; side++) {
+                const zPos = (side === 0 ? -1 : 1) * depth / 2;
+                for (let i = 0; i < dashCount; i++) {
+                    const xPos = -width / 2 + (i + 0.5) * (width / dashCount);
+                    const dashGeo = new THREE.PlaneGeometry(width / dashCount * 0.6, 0.15);
+                    const dash = new THREE.Mesh(dashGeo, dashMat);
+                    dash.rotation.x = -Math.PI / 2;
+                    dash.position.set(xPos, 0.07, zPos);
+                    group.add(dash);
+                }
+            }
+
+            group.position.set(0, 0, START_LINE_Z);
+            scene.add(group);
+            return group;
+        }
+
+        const START_LINE_Z = -25;
+        const START_LINE_X_RANGE = 8;
+
+        createBuoy(-8, -25, 0xffdd00, 'start', 'S');
+        createBuoy(8, -25, 0xffdd00, 'start', 'S');
+        createBuoy(0, 25, 0xff3333, 'checkpoint', '1');
+        buoys[2].checkpointZone = createCheckpointZone(0, 25, CHECKPOINT_RADIUS, '1');
+        createBuoy(-25, -5, 0xff3333, 'checkpoint', '2');
+        buoys[3].checkpointZone = createCheckpointZone(-25, -5, CHECKPOINT_RADIUS, '2');
+        createBuoy(25, -5, 0xff3333, 'checkpoint', '3');
+        buoys[4].checkpointZone = createCheckpointZone(25, -5, CHECKPOINT_RADIUS, '3');
+
+        createStartLineZone();
+
+        const boatStartPos = new THREE.Vector3(0, 0.1, -30);
+        const boatStartHeading = 0;
+
+        const boatGroup = new THREE.Group();
+        const boatTiltGroup = new THREE.Group();
+        boatTiltGroup.rotation.order = 'YXZ';
+        boatGroup.add(boatTiltGroup);
+
+        const hullMat = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.6, metalness: 0.1 });
+        const hullMat2 = new THREE.MeshStandardMaterial({ color: 0xD2B48C, roughness: 0.7 });
+
+        const bottom = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 8), hullMat);
+        bottom.scale.set(1.5, 0.2, 0.8); bottom.position.y = 0.2;
+        bottom.castShadow = true; bottom.receiveShadow = true;
+        boatTiltGroup.add(bottom);
+
+        const sideMat = new THREE.MeshStandardMaterial({ color: 0xA0522D });
+        const leftSide = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.4, 0.2), sideMat);
+        leftSide.position.set(0, 0.5, 0.8); leftSide.castShadow = true; leftSide.receiveShadow = true;
+        boatTiltGroup.add(leftSide);
+        const rightSide = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.4, 0.2), sideMat);
+        rightSide.position.set(0, 0.5, -0.8); rightSide.castShadow = true; rightSide.receiveShadow = true;
+        boatTiltGroup.add(rightSide);
+
+        const bow = new THREE.Mesh(new THREE.ConeGeometry(0.7, 1.2, 8), hullMat2);
+        bow.rotation.z = -Math.PI / 2;
+        bow.position.set(1.5, 0.4, 0);
+        bow.scale.set(1, 1, 0.8);
+        bow.castShadow = true; bow.receiveShadow = true;
+        boatTiltGroup.add(bow);
+
+        const stern = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.6, 1.6), hullMat2);
+        stern.position.set(-1.4, 0.5, 0); stern.castShadow = true; stern.receiveShadow = true;
+        boatTiltGroup.add(stern);
+
+        const deck = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.1, 1.5), new THREE.MeshStandardMaterial({ color: 0xDEB887 }));
+        deck.position.set(0, 0.7, 0); deck.castShadow = true; deck.receiveShadow = true;
+        boatTiltGroup.add(deck);
+
+        const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 2.8, 8), new THREE.MeshStandardMaterial({ color: 0xCD853F }));
+        mast.position.set(0.2, 2.1, 0); mast.castShadow = true; mast.receiveShadow = true;
+        boatTiltGroup.add(mast);
+
+        const mainSailGroup = new THREE.Group();
+        const sailMat = new THREE.MeshStandardMaterial({ color: 0xFFFFFF, side: THREE.DoubleSide, emissive: 0xdddddd, emissiveIntensity: 0.3 });
+        const sailGeo = new THREE.BoxGeometry(2.0, 2.0, 0.05);
+        const sail = new THREE.Mesh(sailGeo, sailMat);
+        sail.position.set(-0.9, 0, 0);
+        sail.castShadow = true; sail.receiveShadow = true;
+        mainSailGroup.add(sail);
+        mainSailGroup.position.set(0.2, 2.1, 0);
+        boatTiltGroup.add(mainSailGroup);
+
+        const jibGroup = new THREE.Group();
+        const jibMat = new THREE.MeshStandardMaterial({ color: 0xFFF8DC, side: THREE.DoubleSide, emissive: 0xcccccc, emissiveIntensity: 0.2 });
+        const jibGeo = new THREE.BoxGeometry(1.4, 1.6, 0.04);
+        const jib = new THREE.Mesh(jibGeo, jibMat);
+        jib.position.set(-0.6, 0, 0);
+        jib.castShadow = true; jib.receiveShadow = true;
+        jibGroup.add(jib);
+        jibGroup.position.set(1.2, 1.6, 0);
+        boatTiltGroup.add(jibGroup);
+
+        const rudderPivot = new THREE.Group();
+        const rudderBlade = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.6, 0.4), new THREE.MeshStandardMaterial({ color: 0x654321 }));
+        rudderBlade.position.set(0, -0.3, 0);
+        rudderBlade.castShadow = true;
+        rudderPivot.add(rudderBlade);
+        rudderPivot.position.set(-1.6, 0.5, 0);
+        boatTiltGroup.add(rudderPivot);
+
+        boatGroup.position.copy(boatStartPos);
+        scene.add(boatGroup);
+
+        const boatState = {
+            speed: 0,
+            heading: boatStartHeading,
+            rudder: 0,
+            sailTrim: 0.5,
+            maxSpeed: 7.0,
+            sailVisual: 0,
+            jibVisual: 0,
+            hitCooldown: 0,
+            knockbackX: 0,
+            knockbackZ: 0,
+            heel: 0,
+            heelTarget: 0,
+            pitch: 0,
+            pitchTarget: 0
+        };
+
+        const windState = {
+            direction: Math.PI,
+            baseDirection: Math.PI,
+            power: 5.0,
+            maxPower: 10.0,
+            minPower: 2.0,
+            changeTimer: 0,
+            targetDirection: Math.PI,
+            targetPower: 5.0,
+            vector: new THREE.Vector3(0, 0, 1)
+        };
+
+        function updateWindVector() {
+            windState.vector.set(Math.sin(windState.direction), 0, -Math.cos(windState.direction)).normalize();
+        }
+        updateWindVector();
+
+        const raceState = {
+            checkpointSequence: [2, 3, 4],
+            currentStep: 0,
+            checkpointsHit: 0,
+            totalCheckpoints: 3,
+            lapCount: 0,
+            startTime: 0,
+            raceActive: false,
+            crossedStartLine: false,
+            lastPos: new THREE.Vector3().copy(boatStartPos)
+        };
+
+        let cameraMode = 'free';
+
+        const keys = {
+            ArrowLeft: false, ArrowRight: false, ArrowUp: false, ArrowDown: false,
+            KeyW: false, KeyA: false, KeyS: false, KeyD: false,
+            KeyQ: false, KeyE: false,
+            ShiftLeft: false, ShiftRight: false
+        };
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'ArrowLeft') { keys.ArrowLeft = true; e.preventDefault(); }
+            if (e.code === 'ArrowRight') { keys.ArrowRight = true; e.preventDefault(); }
+            if (e.code === 'ArrowUp') { keys.ArrowUp = true; e.preventDefault(); }
+            if (e.code === 'ArrowDown') { keys.ArrowDown = true; e.preventDefault(); }
+            if (e.code === 'KeyW') keys.KeyW = true;
+            if (e.code === 'KeyA') keys.KeyA = true;
+            if (e.code === 'KeyS') keys.KeyS = true;
+            if (e.code === 'KeyD') keys.KeyD = true;
+            if (e.code === 'KeyQ') keys.KeyQ = true;
+            if (e.code === 'KeyE') keys.KeyE = true;
+            if (e.code === 'ShiftLeft') keys.ShiftLeft = true;
+            if (e.code === 'ShiftRight') keys.ShiftRight = true;
+            if (e.code === 'KeyF') { toggleCameraMode(); e.preventDefault(); }
+            if (e.code === 'KeyR') { resetBoat(); e.preventDefault(); }
+            if (e.code === 'Escape') {
+                e.preventDefault();
+                if (isPaused) resumeGame();
+                else pauseGame();
+            }
+        });
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'ArrowLeft') keys.ArrowLeft = false;
+            if (e.code === 'ArrowRight') keys.ArrowRight = false;
+            if (e.code === 'ArrowUp') keys.ArrowUp = false;
+            if (e.code === 'ArrowDown') keys.ArrowDown = false;
+            if (e.code === 'KeyW') keys.KeyW = false;
+            if (e.code === 'KeyA') keys.KeyA = false;
+            if (e.code === 'KeyS') keys.KeyS = false;
+            if (e.code === 'KeyD') keys.KeyD = false;
+            if (e.code === 'KeyQ') keys.KeyQ = false;
+            if (e.code === 'KeyE') keys.KeyE = false;
+            if (e.code === 'ShiftLeft') keys.ShiftLeft = false;
+            if (e.code === 'ShiftRight') keys.ShiftRight = false;
+        });
+
+        const cameraModeEl = document.getElementById('camera-mode');
+        function toggleCameraMode() {
+            if (cameraMode === 'free') {
+                cameraMode = 'follow';
+                cameraModeEl.textContent = '📷 跟随视角';
+                cameraModeEl.className = 'follow';
+            } else {
+                cameraMode = 'free';
+                cameraModeEl.textContent = '📷 自由视角';
+                cameraModeEl.className = 'free';
+            }
+        }
+        cameraModeEl.addEventListener('click', toggleCameraMode);
+
+        function resetBoat() {
+            boatGroup.position.copy(boatStartPos);
+            boatState.heading = boatStartHeading;
+            boatState.speed = 0;
+            boatState.rudder = 0;
+            boatState.hitCooldown = 0;
+            boatState.knockbackX = 0;
+            boatState.knockbackZ = 0;
+            boatState.heel = 0;
+            boatState.heelTarget = 0;
+            boatState.pitch = 0;
+            boatState.pitchTarget = 0;
+
+            raceState.currentStep = 0;
+            raceState.checkpointsHit = 0;
+            raceState.lapCount = 0;
+            raceState.raceActive = false;
+            raceState.crossedStartLine = false;
+            raceState.lastPos.copy(boatStartPos);
+
+            for (let i = 2; i < buoys.length; i++) {
+                buoys[i].visited = false;
+                buoys[i].stuckTimer = 0;
+                buoys[i].sphereMaterial.color.setHex(0xff3333);
+                buoys[i].sphereMaterial.emissive.setHex(0xff3333);
+                buoys[i].sphereMaterial.emissiveIntensity = 0.5;
+                buoys[i].ringMat.color.setHex(0xff3333);
+                buoys[i].ringMat.emissive.setHex(0xff3333);
+                if (buoys[i].checkpointZone) {
+                    buoys[i].checkpointZone.ringMat.color.setHex(0xffaa00);
+                    buoys[i].checkpointZone.fillMat.color.setHex(0xffaa00);
+                    buoys[i].checkpointZone.dashes.forEach(d => d.material.color.setHex(0xffdd44));
+                }
+            }
+            raceStatusEl.textContent = '待出发';
+            raceStatusEl.classList.remove('warn');
+            updateNextTargetText();
+        }
+
+        const speedSpan = document.getElementById('speed-value');
+        const windPowerSpan = document.getElementById('wind-power-value');
+        const windBar = document.getElementById('wind-bar');
+        const windArrowEl = document.getElementById('wind-arrow');
+        const windDirValueEl = document.getElementById('wind-dir-value');
+        const sailStatusEl = document.getElementById('sail-status');
+        const sailValueEl = document.getElementById('sail-value');
+        const sailBar = document.getElementById('sail-bar');
+        const rudderKnob = document.getElementById('rudder-knob');
+        const sailAngleValueEl = document.getElementById('sail-angle-value');
+        const pointOfSailEl = document.getElementById('point-of-sail');
+        const heelValueEl = document.getElementById('heel-value');
+
+        const checkpointCountEl = document.getElementById('checkpoint-count');
+        const lapCountEl = document.getElementById('lap-count');
+        const raceTimeEl = document.getElementById('race-time');
+        const raceStatusEl = document.getElementById('race-status');
+        const hitFlash = document.getElementById('hit-flash');
+        const checkpointToast = document.getElementById('checkpoint-toast');
+        const hitToast = document.getElementById('hit-toast');
+        const nextTargetEl = document.getElementById('next-target');
+
+        function updateNextTargetText() {
+            if (!raceState.raceActive) {
+                nextTargetEl.textContent = '🎯 下一个目标：穿越起航线';
+            } else if (raceState.currentStep < raceState.checkpointSequence.length) {
+                const buoyIdx = raceState.checkpointSequence[raceState.currentStep];
+                nextTargetEl.textContent = `🎯 下一个目标：${buoys[buoyIdx].label} 号标（驶入黄圈）`;
+            } else {
+                nextTargetEl.textContent = '🎯 下一个目标：返回终点线';
+            }
+        }
+
+        function showCheckpointToast(text) {
+            checkpointToast.textContent = text;
+            checkpointToast.classList.add('show');
+            setTimeout(() => {
+                checkpointToast.classList.remove('show');
+            }, 1200);
+        }
+
+        function showHitToast() {
+            hitToast.classList.add('show');
+            setTimeout(() => {
+                hitToast.classList.remove('show');
+            }, 600);
+        }
+
+        function normalizeAngle(a) {
+            while (a > Math.PI) a -= Math.PI * 2;
+            while (a < -Math.PI) a += Math.PI * 2;
+            return a;
+        }
+
+        function updateWind(delta) {
+            windState.changeTimer -= delta;
+            if (windState.changeTimer <= 0) {
+                windState.targetDirection = windState.baseDirection + (Math.random() - 0.5) * 0.52;
+                windState.targetPower = 4 + Math.random() * 3;
+                windState.changeTimer = 15 + Math.random() * 15;
+            }
+            windState.direction += (windState.targetDirection - windState.direction) * 0.15 * delta;
+            windState.power += (windState.targetPower - windState.power) * 0.3 * delta;
+            windState.power = Math.max(windState.minPower, Math.min(windState.maxPower, windState.power));
+            updateWindVector();
+
+            windPowerSpan.textContent = windState.power.toFixed(1);
+            windBar.style.width = (windState.power / windState.maxPower * 100) + '%';
+
+            const cssAngle = windState.direction * 180 / Math.PI;
+            windArrowEl.style.transform = `translate(-50%, -100%) rotate(${cssAngle}deg)`;
+
+            let dirDeg = (cssAngle % 360 + 360) % 360;
+            let dirName;
+            if (dirDeg < 22.5 || dirDeg >= 337.5) dirName = '北';
+            else if (dirDeg < 67.5) dirName = '东北';
+            else if (dirDeg < 112.5) dirName = '东';
+            else if (dirDeg < 157.5) dirName = '东南';
+            else if (dirDeg < 202.5) dirName = '南';
+            else if (dirDeg < 247.5) dirName = '西南';
+            else if (dirDeg < 292.5) dirName = '西';
+            else dirName = '西北';
+            windDirValueEl.textContent = dirDeg.toFixed(0) + '° ' + dirName;
+        }
+
+        // ============================================================
+        // 帆效率（迎风死区收窄到 20°）
+        // ============================================================
+        function computeSailEfficiency(relativeWindAngle) {
+            const angle = Math.abs(relativeWindAngle);
+            const angleDeg = angle * 180 / Math.PI;
+
+            let angleEfficiency;
+            if (angleDeg < 20) {
+                // 死区：0~20°
+                angleEfficiency = (angleDeg / 20) * 0.15;
+            } else if (angleDeg < 55) {
+                // 抢风段：20~55°
+                angleEfficiency = 0.15 + (angleDeg - 20) / 35 * 0.95;
+            } else if (angleDeg < 120) {
+                const t = (angleDeg - 55) / 65;
+                angleEfficiency = 1.1 + Math.sin(t * Math.PI) * 0.1;
+            } else if (angleDeg < 160) {
+                const t = (angleDeg - 120) / 40;
+                angleEfficiency = 1.1 - t * 0.3;
+            } else {
+                const t = (angleDeg - 160) / 20;
+                angleEfficiency = 0.8 - t * 0.3;
+            }
+
+            let optimalTrim;
+            if (angleDeg < 55) optimalTrim = 0.85;
+            else if (angleDeg < 120) optimalTrim = 0.55;
+            else optimalTrim = 0.25;
+
+            const trimDeviation = Math.abs(boatState.sailTrim - optimalTrim);
+            let trimEfficiency = 1.0 - trimDeviation * 1.5;
+            trimEfficiency = Math.max(0.15, Math.min(1.0, trimEfficiency));
+
+            const windFactor = windState.power / 7;
+            let efficiency = angleEfficiency * trimEfficiency * windFactor;
+            return Math.max(0, Math.min(1.4, efficiency));
+        }
+
+        function checkBuoyCollisions(delta) {
+            const boatX = boatGroup.position.x;
+            const boatZ = boatGroup.position.z;
+
+            for (let i = 0; i < buoys.length; i++) {
+                const buoy = buoys[i];
+                const dx = boatX - buoy.x;
+                const dz = boatZ - buoy.z;
+                const distSq = dx * dx + dz * dz;
+                const minDist = BOAT_RADIUS + buoy.radius;
+
+                if (distSq < minDist * minDist) {
+                    const dist = Math.sqrt(distSq);
+                    let nx, nz;
+                    if (dist > 0.001) {
+                        nx = dx / dist;
+                        nz = dz / dist;
+                    } else {
+                        const angle = Math.random() * Math.PI * 2;
+                        nx = Math.cos(angle);
+                        nz = Math.sin(angle);
+                    }
+
+                    const overlap = minDist - dist + 0.05;
+                    boatGroup.position.x += nx * overlap;
+                    boatGroup.position.z += nz * overlap;
+
+                    boatState.knockbackX += nx * 3.5;
+                    boatState.knockbackZ += nz * 3.5;
+
+                    if (boatState.speed > 0.3) boatState.speed *= 0.55;
+
+                    buoy.stuckTimer += delta;
+
+                    if (buoy.stuckTimer > 0.4) {
+                        const forceDist = minDist + 1.5;
+                        boatGroup.position.x = buoy.x + nx * forceDist;
+                        boatGroup.position.z = buoy.z + nz * forceDist;
+                        boatState.knockbackX += nx * 8;
+                        boatState.knockbackZ += nz * 8;
+                        boatState.speed = Math.max(boatState.speed, 2.0);
+                        buoy.stuckTimer = 0;
+                    }
+
+                    if (boatState.hitCooldown <= 0) {
+                        boatState.hitCooldown = 0.6;
+                        hitFlash.style.opacity = '1';
+                        showHitToast();
+                        setTimeout(() => {
+                            hitFlash.style.opacity = '0';
+                        }, 150);
+                    }
+                } else {
+                    buoy.stuckTimer = 0;
+                }
+            }
+        }
+
+        function checkRaceProgress() {
+            const boatX = boatGroup.position.x;
+            const boatZ = boatGroup.position.z;
+            const prevZ = raceState.lastPos.z;
+
+            if (!raceState.crossedStartLine) {
+                const crossed = (prevZ > START_LINE_Z && boatZ <= START_LINE_Z) ||
+                                (prevZ < START_LINE_Z && boatZ >= START_LINE_Z);
+                if (crossed && Math.abs(boatX) < START_LINE_X_RANGE && Math.abs(prevZ - boatZ) > 0.001) {
+                    raceState.crossedStartLine = true;
+                    raceState.raceActive = true;
+                    raceState.startTime = performance.now();
+                    raceState.currentStep = 0;
+                    raceStatusEl.textContent = '绕标中';
+                    raceStatusEl.classList.remove('warn');
+                    showCheckpointToast('🚩 出发！');
+                    highlightNextCheckpoint();
+                    updateNextTargetText();
+                }
+                return;
+            }
+
+            if (raceState.currentStep < raceState.checkpointSequence.length) {
+                const buoyIdx = raceState.checkpointSequence[raceState.currentStep];
+                const targetBuoy = buoys[buoyIdx];
+                const dx = boatX - targetBuoy.x;
+                const dz = boatZ - targetBuoy.z;
+                const dist = Math.sqrt(dx*dx + dz*dz);
+
+                if (dist < CHECKPOINT_RADIUS && !targetBuoy.visited) {
+                    targetBuoy.visited = true;
+                    raceState.checkpointsHit++;
+
+                    targetBuoy.sphereMaterial.color.setHex(0x33ff66);
+                    targetBuoy.sphereMaterial.emissive.setHex(0x33ff66);
+                    targetBuoy.sphereMaterial.emissiveIntensity = 2.0;
+                    targetBuoy.ringMat.color.setHex(0x33ff66);
+                    targetBuoy.ringMat.emissive.setHex(0x33ff66);
+
+                    if (targetBuoy.checkpointZone) {
+                        targetBuoy.checkpointZone.ringMat.color.setHex(0x33ff66);
+                        targetBuoy.checkpointZone.fillMat.color.setHex(0x33ff66);
+                        targetBuoy.checkpointZone.dashes.forEach(d => d.material.color.setHex(0x33ff66));
+                    }
+
+                    showCheckpointToast(`✅ 绕过 ${targetBuoy.label} 号标`);
+                    raceState.currentStep++;
+
+                    if (raceState.currentStep >= raceState.checkpointSequence.length) {
+                        raceStatusEl.textContent = '返回终点';
+                        raceStatusEl.classList.add('warn');
+                    } else {
+                        highlightNextCheckpoint();
+                    }
+                    updateNextTargetText();
+                }
+            } else {
+                const crossedBack = (prevZ < START_LINE_Z && boatZ >= START_LINE_Z) ||
+                                    (prevZ > START_LINE_Z && boatZ <= START_LINE_Z);
+                if (crossedBack && Math.abs(boatX) < START_LINE_X_RANGE && Math.abs(prevZ - boatZ) > 0.001) {
+                    raceState.lapCount++;
+                    raceState.checkpointsHit = 0;
+                    raceState.currentStep = 0;
+                    raceState.crossedStartLine = false;
+                    raceState.raceActive = false;
+
+                    for (let i = 2; i < buoys.length; i++) {
+                        buoys[i].visited = false;
+                        buoys[i].sphereMaterial.color.setHex(0xff3333);
+                        buoys[i].sphereMaterial.emissive.setHex(0xff3333);
+                        buoys[i].sphereMaterial.emissiveIntensity = 0.5;
+                        buoys[i].ringMat.color.setHex(0xff3333);
+                        buoys[i].ringMat.emissive.setHex(0xff3333);
+                        if (buoys[i].checkpointZone) {
+                            buoys[i].checkpointZone.ringMat.color.setHex(0xffaa00);
+                            buoys[i].checkpointZone.fillMat.color.setHex(0xffaa00);
+                            buoys[i].checkpointZone.dashes.forEach(d => d.material.color.setHex(0xffdd44));
+                        }
+                    }
+
+                    raceStatusEl.textContent = '待出发';
+                    raceStatusEl.classList.remove('warn');
+                    showCheckpointToast(`🏁 完成第 ${raceState.lapCount} 圈！`);
+                    updateNextTargetText();
+                }
+            }
+        }
+
+        function highlightNextCheckpoint() {
+            for (let i = 2; i < buoys.length; i++) {
+                if (!buoys[i].visited) {
+                    buoys[i].sphereMaterial.color.setHex(0xff3333);
+                    buoys[i].sphereMaterial.emissive.setHex(0xff3333);
+                    buoys[i].sphereMaterial.emissiveIntensity = 0.5;
+                    buoys[i].ringMat.color.setHex(0xff3333);
+                    buoys[i].ringMat.emissive.setHex(0xff3333);
+                    if (buoys[i].checkpointZone) {
+                        buoys[i].checkpointZone.ringMat.color.setHex(0xffaa00);
+                        buoys[i].checkpointZone.fillMat.color.setHex(0xffaa00);
+                        buoys[i].checkpointZone.dashes.forEach(d => d.material.color.setHex(0xffdd44));
+                    }
+                }
+            }
+            if (raceState.currentStep < raceState.checkpointSequence.length) {
+                const buoyIdx = raceState.checkpointSequence[raceState.currentStep];
+                const buoy = buoys[buoyIdx];
+                buoy.sphereMaterial.emissiveIntensity = 1.2;
+                buoy.ringMat.color.setHex(0xffff00);
+                buoy.ringMat.emissive.setHex(0xffff00);
+                if (buoy.checkpointZone) {
+                    buoy.checkpointZone.ringMat.color.setHex(0xffff00);
+                    buoy.checkpointZone.fillMat.color.setHex(0xffff00);
+                    buoy.checkpointZone.dashes.forEach(d => d.material.color.setHex(0xffff00));
+                }
+            }
+        }
+
+        function movePlayer(delta) {
+            const isFast = keys.ShiftLeft || keys.ShiftRight;
+            const speed = player.baseSpeed * (isFast ? player.fastMultiplier : 1) * delta;
+
+            const forwardX = -Math.sin(player.yaw);
+            const forwardZ = -Math.cos(player.yaw);
+            const rightXFinal = Math.cos(player.yaw);
+            const rightZFinal = -Math.sin(player.yaw);
+
+            let moveX = 0, moveZ = 0;
+            if (keys.KeyW) { moveX += forwardX; moveZ += forwardZ; }
+            if (keys.KeyS) { moveX -= forwardX; moveZ -= forwardZ; }
+            if (keys.KeyD) { moveX += rightXFinal; moveZ += rightZFinal; }
+            if (keys.KeyA) { moveX -= rightXFinal; moveZ -= rightZFinal; }
+
+            let moveY = 0;
+            if (keys.KeyE) moveY += 1;
+            if (keys.KeyQ) moveY -= 1;
+
+            const len = Math.sqrt(moveX * moveX + moveZ * moveZ);
+            if (len > 0.001) {
+                moveX /= len;
+                moveZ /= len;
+            }
+
+            player.position.x += moveX * speed;
+            player.position.z += moveZ * speed;
+            player.position.y += moveY * speed;
+            player.position.y = Math.max(0.5, Math.min(50, player.position.y));
+
+            const limit = 60;
+            player.position.x = Math.max(-limit, Math.min(limit, player.position.x));
+            player.position.z = Math.max(-limit, Math.min(limit, player.position.z));
+        }
+
+        function applyCamera() {
+            camera.position.copy(player.position);
+            const cosPitch = Math.cos(player.pitch);
+            const lookDir = new THREE.Vector3(
+                -Math.sin(player.yaw) * cosPitch,
+                Math.sin(player.pitch),
+                -Math.cos(player.yaw) * cosPitch
+            );
+            camera.lookAt(player.position.clone().add(lookDir));
+        }
+
+        const followOffset = new THREE.Vector3(8, 5, 10);
+        let prevBoatPos = new THREE.Vector3(0, 0, 0);
+
+        function updateFollowCamera() {
+            const targetCamPos = new THREE.Vector3(
+                boatGroup.position.x + followOffset.x,
+                boatGroup.position.y + followOffset.y,
+                boatGroup.position.z + followOffset.z
+            );
+            player.position.lerp(targetCamPos, 0.1);
+
+            const lookTarget = new THREE.Vector3(
+                boatGroup.position.x,
+                boatGroup.position.y + 1.0,
+                boatGroup.position.z
+            );
+            const dir = new THREE.Vector3().subVectors(lookTarget, player.position);
+            const len = dir.length();
+            if (len > 0.001) {
+                dir.normalize();
+                player.pitch = Math.asin(Math.max(-1, Math.min(1, dir.y)));
+                player.yaw = Math.atan2(-dir.x, -dir.z);
+            }
+            prevBoatPos.copy(boatGroup.position);
+        }
+
+        let clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+            const time = performance.now() * 0.001;
+            const safeDelta = Math.min(delta, 0.1);
+
+            if (isPaused) {
+                renderer.render(scene, camera);
+                return;
+            }
+
+            updateWind(safeDelta);
+            if (boatState.hitCooldown > 0) boatState.hitCooldown -= safeDelta;
+
+            const rudderSpeed = 2.5;
+            if (keys.ArrowLeft) {
+                boatState.rudder -= rudderSpeed * safeDelta;
+            } else if (keys.ArrowRight) {
+                boatState.rudder += rudderSpeed * safeDelta;
+            } else {
+                if (Math.abs(boatState.rudder) < 0.05) boatState.rudder = 0;
+                else boatState.rudder -= Math.sign(boatState.rudder) * 1.5 * safeDelta;
+            }
+            boatState.rudder = Math.max(-1, Math.min(1, boatState.rudder));
+
+            const trimSpeed = 0.8;
+            if (keys.ArrowUp) boatState.sailTrim += trimSpeed * safeDelta;
+            else if (keys.ArrowDown) boatState.sailTrim -= trimSpeed * safeDelta;
+            boatState.sailTrim = Math.max(0, Math.min(1, boatState.sailTrim));
+
+            const boatDirX = Math.sin(boatState.heading);
+            const boatDirZ = -Math.cos(boatState.heading);
+            const boatDir = new THREE.Vector3(boatDirX, 0, boatDirZ);
+            const windVec = windState.vector.clone();
+            const dot = boatDir.dot(windVec);
+            const relativeWindAngle = Math.acos(Math.max(-1, Math.min(1, dot)));
+
+            const sailEfficiency = computeSailEfficiency(relativeWindAngle);
+
+            const speedFactor = Math.min(1, boatState.speed / 2);
+            const turnForce = boatState.rudder * 0.8 * speedFactor;
+            boatState.heading += turnForce * safeDelta * 2.5;
+            boatState.heading = normalizeAngle(boatState.heading);
+
+            const thrust = sailEfficiency * 1.0;
+            const drag = boatState.speed * 0.06 + boatState.speed * boatState.speed * 0.012;
+            const acceleration = thrust - drag;
+            boatState.speed += acceleration * safeDelta * 3;
+            if (boatState.speed < 0) boatState.speed = 0;
+            if (boatState.speed > boatState.maxSpeed) boatState.speed = boatState.maxSpeed;
+
+            const angleDeg = relativeWindAngle * 180 / Math.PI;
+            // 逆风失速阈值从 25° 改到 15°
+            if (angleDeg < 15 && boatState.speed > 0.5) {
+                boatState.speed -= 0.5 * safeDelta * 3;
+                if (boatState.speed < 0) boatState.speed = 0;
+            }
+
+            raceState.lastPos.copy(boatGroup.position);
+
+            const moveDirX = Math.sin(boatState.heading);
+            const moveDirZ = -Math.cos(boatState.heading);
+            boatGroup.position.x += moveDirX * boatState.speed * safeDelta * 1.2;
+            boatGroup.position.z += moveDirZ * boatState.speed * safeDelta * 1.2;
+
+            boatGroup.position.x += boatState.knockbackX * safeDelta;
+            boatGroup.position.z += boatState.knockbackZ * safeDelta;
+
+            boatState.knockbackX *= Math.pow(0.02, safeDelta);
+            boatState.knockbackZ *= Math.pow(0.02, safeDelta);
+            if (Math.abs(boatState.knockbackX) < 0.01) boatState.knockbackX = 0;
+            if (Math.abs(boatState.knockbackZ) < 0.01) boatState.knockbackZ = 0;
+
+            const limit = 55;
+            boatGroup.position.x = Math.max(-limit, Math.min(limit, boatGroup.position.x));
+            boatGroup.position.z = Math.max(-limit, Math.min(limit, boatGroup.position.z));
+
+            checkBuoyCollisions(safeDelta);
+            checkRaceProgress();
+
+            const rightX = Math.cos(boatState.heading);
+            const rightZ = Math.sin(boatState.heading);
+            const windLateral = windVec.x * rightX + windVec.z * rightZ;
+
+            const windHeelForce = -windLateral * sailEfficiency * (1 - boatState.sailTrim * 0.4);
+            const windPowerFactor = windState.power / 8;
+            const turnHeelForce = -boatState.rudder * speedFactor * 0.4;
+
+            const maxHeel = Math.PI * 0.14;
+            let targetHeel = (windHeelForce * 1.8 + turnHeelForce) * windPowerFactor;
+            targetHeel = Math.max(-maxHeel, Math.min(maxHeel, targetHeel));
+            boatState.heelTarget = targetHeel;
+            boatState.heel += (boatState.heelTarget - boatState.heel) * 2.5 * safeDelta;
+
+            const accelPitch = -acceleration * 0.06;
+            const wavePitch = Math.sin(time * 2.5) * 0.02;
+            boatState.pitchTarget = accelPitch + wavePitch;
+            boatState.pitch += (boatState.pitchTarget - boatState.pitch) * 3 * safeDelta;
+
+            boatGroup.rotation.y = Math.PI / 2 - boatState.heading;
+            boatTiltGroup.rotation.x = boatState.heel;
+            boatTiltGroup.rotation.z = boatState.pitch;
+
+            boatGroup.position.y = 0.1 + Math.sin(time * 3) * 0.08;
+
+            rudderPivot.rotation.y = boatState.rudder * 0.6;
+
+            const localZWorldX = Math.cos(boatState.heading);
+            const localZWorldZ = Math.sin(boatState.heading);
+            const windFromLocalZ = windVec.x * localZWorldX + windVec.z * localZWorldZ;
+            const sideSign = windFromLocalZ > 0 ? -1 : 1;
+
+            const maxSwing = (1 - boatState.sailTrim * 0.85) * (Math.PI * 0.45);
+            const windAngleFactor = 0.3 + Math.sin(relativeWindAngle) * 0.7;
+            const targetSailVisual = sideSign * maxSwing * windAngleFactor;
+
+            boatState.sailVisual += (targetSailVisual - boatState.sailVisual) * 0.08;
+            mainSailGroup.rotation.y = boatState.sailVisual;
+
+            const maxJibSwing = (1 - boatState.sailTrim * 0.75) * (Math.PI * 0.5);
+            const targetJibVisual = sideSign * maxJibSwing * windAngleFactor;
+            boatState.jibVisual += (targetJibVisual - boatState.jibVisual) * 0.08;
+            jibGroup.rotation.y = boatState.jibVisual;
+
+            for (let i = 0; i < buoys.length; i++) {
+                const buoy = buoys[i];
+                const bob = Math.sin(time * 1.5 + buoy.phaseOffset) * 0.15;
+                const tiltX = Math.sin(time * 1.2 + buoy.phaseOffset) * 0.05;
+                const tiltZ = Math.cos(time * 1.3 + buoy.phaseOffset) * 0.05;
+                buoy.mesh.position.y = buoy.baseY + bob;
+                buoy.mesh.rotation.x = tiltX;
+                buoy.mesh.rotation.z = tiltZ;
+            }
+
+            if (raceState.raceActive && raceState.currentStep < raceState.checkpointSequence.length) {
+                const buoyIdx = raceState.checkpointSequence[raceState.currentStep];
+                const buoy = buoys[buoyIdx];
+                const pulse = 1.2 + Math.sin(time * 6) * 0.8;
+                buoy.sphereMaterial.emissiveIntensity = pulse;
+                if (buoy.checkpointZone) {
+                    const zonePulse = 0.4 + Math.sin(time * 4) * 0.25;
+                    buoy.checkpointZone.ringMat.opacity = zonePulse;
+                    buoy.checkpointZone.fillMat.opacity = 0.05 + Math.sin(time * 4) * 0.03;
+                }
+            }
+
+            const knots = (boatState.speed * 2.5).toFixed(1);
+            speedSpan.textContent = knots;
+
+            let pointOfSail;
+            if (angleDeg < 20) pointOfSail = '🔴 逆风死区';
+            else if (angleDeg < 55) pointOfSail = '🟢 抢风行驶';
+            else if (angleDeg < 120) pointOfSail = '🟢 侧风行驶';
+            else if (angleDeg < 160) pointOfSail = '🟢 侧顺风';
+            else pointOfSail = '🟡 正顺风';
+            pointOfSailEl.textContent = '航向：' + pointOfSail;
+
+            if (sailEfficiency > 0.9) sailStatusEl.textContent = '🟢 帆效率：极高';
+            else if (sailEfficiency > 0.65) sailStatusEl.textContent = '🟢 帆效率：高';
+            else if (sailEfficiency > 0.4) sailStatusEl.textContent = '🟡 帆效率：中';
+            else if (sailEfficiency > 0.15) sailStatusEl.textContent = '🟠 帆效率：低';
+            else sailStatusEl.textContent = '🔴 帆效率：失速';
+
+            const sailPercent = Math.round(boatState.sailTrim * 100);
+            sailValueEl.textContent = sailPercent;
+            sailBar.style.width = sailPercent + '%';
+
+            const rudderPercent = (boatState.rudder + 1) / 2 * 100;
+            rudderKnob.style.left = rudderPercent + '%';
+
+            const sailAngleDeg = (boatState.sailVisual * 180 / Math.PI).toFixed(0);
+            sailAngleValueEl.textContent = sailAngleDeg;
+
+            const heelDeg = (boatState.heel * 180 / Math.PI).toFixed(0);
+            heelValueEl.textContent = heelDeg;
+
+            checkpointCountEl.textContent = `${raceState.checkpointsHit} / ${raceState.totalCheckpoints}`;
+            lapCountEl.textContent = raceState.lapCount;
+
+            if (raceState.raceActive) {
+                const elapsed = (performance.now() - raceState.startTime) / 1000;
+                raceTimeEl.textContent = elapsed.toFixed(1);
+            }
+
+            sparkles.rotation.y += 0.0005;
+            sparkles.material.opacity = 0.5 + Math.sin(time * 5) * 0.2;
+
+            const positions = windParticles.geometry.attributes.position.array;
+            for (let i = 0; i < windParticleCount; i++) {
+                const sFactor = windParticleSpeeds[i] * windState.power * 0.05;
+                positions[i*3] += windState.vector.x * sFactor * safeDelta * 30;
+                positions[i*3+2] += windState.vector.z * sFactor * safeDelta * 30;
+                if (positions[i*3] > 40) positions[i*3] = -40;
+                if (positions[i*3] < -40) positions[i*3] = 40;
+                if (positions[i*3+2] > 40) positions[i*3+2] = -40;
+                if (positions[i*3+2] < -40) positions[i*3+2] = 40;
+                positions[i*3+1] += Math.sin(time * 2 + i) * 0.005;
+            }
+            windParticles.geometry.attributes.position.needsUpdate = true;
+
+            windArrowGroup.position.x = boatGroup.position.x + Math.sin(time * 0.5) * 2;
+            windArrowGroup.position.z = boatGroup.position.z + Math.cos(time * 0.5) * 2;
+            windArrowGroup.position.y = 5 + Math.sin(time * 2) * 0.5;
+            const vx = windState.vector.x;
+            const vz = windState.vector.z;
+            windArrowGroup.rotation.y = Math.atan2(-vz, vx);
+
+            if (cameraMode === 'free') {
+                movePlayer(safeDelta);
+            } else {
+                updateFollowCamera();
+            }
+            applyCamera();
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        boatGroup.position.copy(boatStartPos);
+        prevBoatPos.copy(boatGroup.position);
+        raceState.lastPos.copy(boatStartPos);
+        updateNextTargetText();
+        applyCamera();
+
+        animate();
+    </script>
+</body>
+</html>
