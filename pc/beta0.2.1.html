@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>湖上遥帆 · 3D REGATTA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Noto+Serif+SC:wght@700;900&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#ece3cf;--accent:#ff7a3d;--teal:#7fd8c8;--dim:rgba(236,227,207,.55)}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;background:#08181c}
+body{font-family:'IBM Plex Mono',ui-monospace,monospace;color:var(--ink);user-select:none;-webkit-user-select:none;touch-action:none}
+#gl{position:fixed;inset:0;z-index:0;display:block;touch-action:none}
+
+/* ---------- HUD ---------- */
+#hud{position:fixed;inset:0;pointer-events:none;font-size:12px;opacity:0;transition:opacity .7s;z-index:2}
+#hud.on{opacity:1}
+.panel{position:absolute;background:rgba(7,20,23,.55);border:1px solid rgba(236,227,207,.13);border-radius:10px;backdrop-filter:blur(6px);padding:10px}
+.tl{top:14px;left:14px;text-align:center}
+.tr{top:14px;right:14px}
+.br{bottom:14px;right:14px;text-align:center;min-width:136px}
+.bl{bottom:14px;left:14px;width:186px}
+.cap{margin-top:6px;color:var(--dim);font-size:11px;letter-spacing:.05em}
+.cap b{color:var(--ink)}
+#cvCompass{width:92px;height:92px}
+#cvMap{width:152px;height:114px;border-radius:4px}
+#cvDial{width:116px;height:116px}
+.times{margin-top:8px;display:grid;gap:3px;font-size:12px}
+.times>div{display:flex;justify-content:space-between;gap:14px}
+.times .lbl{color:var(--dim)}
+.times b{font-weight:600;font-variant-numeric:tabular-nums}
+#lapTime{color:var(--accent)}
+.trimrow{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:11px}
+.trimrow .lbl{color:var(--dim);flex:none;letter-spacing:.05em}
+.trimbar{flex:1;height:6px;border:1px solid rgba(236,227,207,.25);border-radius:3px;overflow:hidden}
+.trimbar i{display:block;height:100%;width:70%;background:linear-gradient(90deg,#ffd9a0,#ff7a3d)}
+#trimPct{font-variant-numeric:tabular-nums;font-weight:600}
+.spbar{height:6px;border:1px solid rgba(236,227,207,.25);border-radius:3px;overflow:hidden}
+.spbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#3f8f80,#7fd8c8 70%,#ffd9a0);transition:width .12s linear}
+#objective{position:absolute;top:16px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:9px;background:rgba(7,20,23,.55);border:1px solid rgba(236,227,207,.13);border-radius:20px;padding:7px 18px;backdrop-filter:blur(6px);white-space:nowrap}
+#objective em{font-style:normal;color:var(--dim)}
+#objArr{transition:transform .2s}
+#gustTag{position:absolute;top:64px;left:50%;transform:translateX(-50%);color:#ffb37a;border:1px solid rgba(255,150,80,.5);border-radius:4px;padding:3px 10px;font-size:11px;letter-spacing:.25em;display:none;animation:gt 1s infinite}
+@keyframes gt{50%{opacity:.35}}
+#banner{position:absolute;top:96px;left:50%;transform:translate(-50%,-14px);background:rgba(7,20,23,.75);border:1px solid rgba(255,122,61,.45);border-radius:8px;padding:10px 26px;font-size:16px;letter-spacing:.08em;opacity:0;transition:all .35s;font-family:'Noto Serif SC',serif;font-weight:700}
+#banner.show{opacity:1;transform:translate(-50%,0)}
+#toast{position:absolute;bottom:15%;left:50%;transform:translateX(-50%);color:var(--dim);font-size:12px;letter-spacing:.1em;opacity:0;transition:opacity .3s}
+#toast.show{opacity:1}
+#cdNum{position:absolute;top:36%;left:50%;transform:translate(-50%,-50%);font-family:'Noto Serif SC',serif;font-weight:900;font-size:110px;color:var(--accent);display:none;animation:cdp .9s ease-out}
+@keyframes cdp{0%{transform:translate(-50%,-50%) scale(1.6);opacity:0}18%{opacity:1;transform:translate(-50%,-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) scale(.85)}}
+#edgeArr{position:fixed;z-index:2;pointer-events:none;display:none;filter:drop-shadow(0 0 6px rgba(255,122,61,.6))}
+#camHint{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);color:rgba(236,227,207,.4);font-size:11px;letter-spacing:.08em}
+
+/* ---------- 触控 ---------- */
+#touchUI{position:fixed;inset:auto 0 0 0;display:none;justify-content:space-between;align-items:flex-end;padding:0 22px 26px;pointer-events:none;z-index:3}
+body.touch #touchUI.on{display:flex}
+body.touch #camHint{display:none}
+body.touch .bl{display:none}
+#touchUI button{pointer-events:auto;border-radius:50%;border:1.5px solid rgba(236,227,207,.4);background:rgba(7,20,23,.5);color:var(--ink);display:flex;align-items:center;justify-content:center;touch-action:none}
+#touchUI button:active{background:rgba(255,122,61,.35);border-color:var(--accent)}
+#tL,#tR{width:74px;height:74px}
+#tCol{display:flex;flex-direction:column;gap:10px;align-items:center}
+#tSI,#tSO{width:58px;height:58px}
+
+/* ---------- 菜单 ---------- */
+#menu{position:fixed;inset:0;display:flex;align-items:center;z-index:5;transition:opacity .6s;background:linear-gradient(100deg,rgba(4,14,16,.82) 0%,rgba(4,14,16,.55) 42%,rgba(4,14,16,0) 75%)}
+#menu.off{opacity:0;pointer-events:none}
+.mbox{width:min(560px,92vw);padding:24px 28px 24px 6vw;border-left:2px solid var(--accent);margin-left:3vw}
+.kicker{font-size:11px;letter-spacing:.45em;color:var(--teal);margin-bottom:14px}
+.mbox h1{font-family:'Noto Serif SC',serif;font-weight:900;font-size:clamp(52px,8.5vw,82px);line-height:1.05;letter-spacing:.06em}
+.tagline{margin:14px 0 24px;color:var(--dim);font-size:13px;letter-spacing:.04em}
+.rules{list-style:none;display:grid;gap:13px;margin-bottom:22px}
+.rules li{display:flex;gap:16px;align-items:baseline}
+.rules i{font-family:'Noto Serif SC',serif;font-style:normal;font-weight:700;color:var(--accent);flex:none}
+.rules b{display:block;font-size:13px;letter-spacing:.08em;margin-bottom:2px}
+.rules span{color:var(--dim);font-size:12px;line-height:1.55}
+.keys{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:12px;color:var(--dim);margin-bottom:26px}
+kbd{display:inline-block;border:1px solid rgba(236,227,207,.35);border-radius:4px;padding:1px 7px;margin-right:4px;font-family:inherit;font-size:11px;color:var(--ink)}
+#btnStart{pointer-events:auto;font-family:'Noto Serif SC',serif;font-weight:700;font-size:17px;letter-spacing:.35em;padding:14px 46px 14px 52px;background:transparent;color:var(--accent);border:1.5px solid var(--accent);border-radius:3px;cursor:pointer;transition:all .2s}
+#btnStart:hover{background:var(--accent);color:#12100c}
+.mbest{margin-top:18px;font-size:12px;color:var(--dim);letter-spacing:.1em}
+#pauseOv{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(4,14,16,.55);z-index:4;font-family:'Noto Serif SC',serif;font-size:26px;letter-spacing:.3em;font-weight:700;cursor:pointer}
+#pauseOv.on{display:flex}
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div class="panel tl">
+    <canvas id="cvCompass"></canvas>
+    <div class="cap" id="windTxt">--</div>
+  </div>
+  <div class="panel tr">
+    <canvas id="cvMap"></canvas>
+    <div class="times">
+      <div><span class="lbl" id="lapLbl">热身</span><b id="lapTime">0:00.0</b></div>
+      <div><span class="lbl">总计</span><b id="totalTime">0:00.0</b></div>
+      <div><span class="lbl">最佳</span><b id="bestTime">--</b></div>
+    </div>
+  </div>
+  <div class="panel br">
+    <canvas id="cvDial"></canvas>
+    <div class="cap"><b id="effPct">--</b> <span id="effWord"></span><br><span id="aoaTxt">--</span></div>
+  </div>
+  <div class="panel bl">
+    <div class="trimrow"><span class="lbl">缭绳</span><div class="trimbar"><i id="trimFill"></i></div><b id="trimPct">70%</b></div>
+    <div class="spbar"><i id="spFill"></i></div>
+    <div class="cap" id="spTxt">0.0 kn</div>
+  </div>
+  <div id="objective">
+    <svg id="objArr" viewBox="0 0 20 20" width="15" height="15"><path d="M10 2 L16 16 L10 12.4 L4 16 Z" fill="#ff7a3d"/></svg>
+    <span id="objName">起航线</span><em id="objDist"></em>
+  </div>
+  <div id="gustTag">阵 风</div>
+  <div id="banner"></div>
+  <div id="toast"></div>
+  <div id="cdNum"></div>
+  <div id="camHint">拖动画面旋转视角 · 滚轮 / 双指缩放 · C 复位</div>
+</div>
+<div id="edgeArr"><svg viewBox="0 0 34 34" width="34" height="34"><path d="M17 3 L29 27 L17 20.5 L5 27 Z" fill="#ff7a3d"/></svg></div>
+
+<div id="touchUI">
+  <button id="tL" aria-label="左舵"><svg viewBox="0 0 24 24" width="26" height="26"><path d="M16 4 L7 12 L16 20" fill="none" stroke="#ece3cf" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+  <div id="tCol">
+    <button id="tSI" aria-label="收帆"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M5 14 L12 7 L19 14 M5 20 L12 13 L19 20" fill="none" stroke="#ece3cf" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button id="tSO" aria-label="松帆"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M5 10 L12 17 L19 10 M5 4 L12 11 L19 4" fill="none" stroke="#ece3cf" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button id="tR" aria-label="右舵"><svg viewBox="0 0 24 24" width="26" height="26"><path d="M8 4 L17 12 L8 20" fill="none" stroke="#ece3cf" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+  </div>
+</div>
+
+<div id="menu">
+  <div class="mbox">
+    <div class="kicker">REMOTE-CONTROLLED SAILING · 3D</div>
+    <h1>湖上遥帆</h1>
+    <div class="tagline">经典三角竞速 —— 迎风抢标 · 两侧风横渡 · 驶入光环过标</div>
+    <ul class="rules">
+      <li><i>壹</i><div><b>三角航线</b><span>下风端起终点共用一条线：迎风冲线起航 → 之字抢风绕上风标 → 侧风段绕三角标 → 侧顺风冲终点线。绕标看水面的橙色圆环：驶入环内、沿比赛方向越过浮标即算绕过；环内折返不计数，绕环外蹭过不计数。</span></div></li>
+      <li><i>贰</i><div><b>缭绳定生死</b><span>↑/↓ 收放缭绳，攻角（帆与风的夹角）保持 15°–50° 吃满风。迎风段收到 90% 以上；罗盘风针指向风的来向，风针两侧红弧是顶风死区。</span></div></li>
+      <li><i>叁</i><div><b>顶风不会死锁</b><span>被顶停时船头会自动缓缓偏出风眼，收紧帆再转舵即可脱困。水面发亮的波带是阵风，侧顺风段冲进去更快。</span></div></li>
+    </ul>
+    <div class="keys">
+      <span><kbd>←</kbd><kbd>→</kbd> 掌舵</span>
+      <span><kbd>↑</kbd><kbd>↓</kbd> 收帆 / 松帆</span>
+      <span><kbd>R</kbd> 回到航线</span>
+      <span><kbd>C</kbd> 视角复位</span>
+      <span><kbd>M</kbd> 声音</span>
+      <span><kbd>Esc</kbd> 暂停</span>
+      <span>触屏：左下舵 · 右下缭绳</span>
+    </div>
+    <button id="btnStart">下 水 · 起 航</button>
+    <div class="mbest" id="menuBest">最佳单圈 --:--.-</div>
+  </div>
+</div>
+
+<div id="pauseOv">已 暂 停</div>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}
+</script>
+<script>
+/* 引擎自检：模块若加载失败给出可见提示 */
+window.addEventListener('load',function(){setTimeout(function(){
+  if(!window.__HYSF_OK){
+    var d=document.createElement('div');
+    d.style.cssText='position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:99;background:rgba(110,28,18,.92);border:1px solid rgba(255,150,120,.55);color:#ffe4d4;font:12px/1.7 ui-monospace,monospace;padding:10px 18px;border-radius:8px;max-width:86vw;text-align:center';
+    d.textContent='3D 引擎未能启动：需要联网加载 Three.js（CDN），并使用较新的 Chrome / Edge / Safari / Firefox。请检查网络后刷新重试。';
+    document.body.appendChild(d);
+  }
+},3000)});
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+/* ================= 工具 ================= */
+const TAU=Math.PI*2;
+const norm=a=>{a%=TAU;if(a>Math.PI)a-=TAU;if(a<-Math.PI)a+=TAU;return a};
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const lerp=(a,b,t)=>a+(b-a)*t;
+const ss=(a,b,x)=>{const k=clamp((x-a)/(b-a),0,1);return k*k*(3-2*k)};
+const $=id=>document.getElementById(id);
+let t=0;
+
+/* ================= 风（气象学约定：dir = 风的来向） ================= */
+const wind={base:0.25,dir:0.25,spd:11,gust:{on:false,d:0,w:90,timer:9}};
+const windUnit=()=>({x:Math.cos(wind.dir),y:Math.sin(wind.dir)});
+function gustFactor(x,z){
+  const g=wind.gust;if(!g.on)return 1;
+  const u=windUnit(),p=x*u.x+z*u.y;
+  return(p>g.d&&p<g.d+g.w)?1.38:1;
+}
+function updateWind(dt){
+  wind.dir=norm(wind.base+0.34*Math.sin(t*0.043)+0.24*Math.sin(t*0.017+2));
+  wind.spd=10.5+3.2*Math.sin(t*0.071)+1.6*Math.sin(t*0.023+5);
+  const g=wind.gust;
+  if(g.on){g.d-=wind.spd*0.9*dt;if(g.d<-420)g.on=false}
+  else{g.timer-=dt;if(g.timer<=0){g.on=true;g.d=180;g.w=85+Math.random()*35;g.timer=16+Math.random()*12}}
+}
+
+/* ================= 三角航线（Olympic Triangle，逆时针/左舷绕标） =================
+   门分两类：
+   · 线门（起航线/终点线）：穿线判定——沿门法线方向穿越线段；
+   · 环门（上风标/三角标）：圆环判定——驶入 RING_R 半径的环内锁定，
+     锁定期间沿进航段方向越过圆心即算绕标；未过心先出环则解除锁定。 */
+const BOUND_X=144,BOUND_Z=104;
+const RING_R=8;                       // 绕标圆环半径 = 判定半径（所见即所判）
+const gates=[
+  {name:'起航线',halfW:13},
+  {name:'上风标',mark:true},
+  {name:'三角标',mark:true},
+  {name:'终点线',halfW:13},
+];
+gates.forEach(g=>{g.prevS=-1;g.inRing=false;g.bob=Math.random()*TAU});
+function layoutCourse(){
+  const ux=Math.cos(wind.base),uy=Math.sin(wind.base);
+  const qx=-uy,qy=ux;
+  const V=(d,l)=>({x:ux*d+qx*l,y:uy*d+qy*l});
+  const C0=V(-78,0), W=V(80,0), G=V(-6,62);
+  const nrm=v=>{const l=Math.hypot(v.x,v.y);return{x:v.x/l,y:v.y/l}};
+  const mk=(g,c,n,hw)=>{
+    g.cx=c.x;g.cy=c.y;g.nx=n.x;g.ny=n.y;
+    if(hw!==undefined){
+      g.ax=c.x-n.y*hw; g.ay=c.y+n.x*hw;
+      g.bx=c.x+n.y*hw; g.by=c.y-n.x*hw;
+      g.abx=g.bx-g.ax; g.aby=g.by-g.ay;
+      g.len2=g.abx*g.abx+g.aby*g.aby;
+    }
+  };
+  mk(gates[0],C0,{x:ux,y:uy},13);                        // 起航：迎风穿线
+  mk(gates[1],W, nrm({x:W.x-C0.x,y:W.y-C0.y}));          // 上风标：环判定，法线=进航段
+  mk(gates[2],G, nrm({x:G.x-W.x,y:G.y-W.y}));            // 三角标：环判定，法线=进航段
+  mk(gates[3],C0,{x:-ux,y:-uy},13);                      // 终点：顺风穿线
+}
+layoutCourse();
+let gateIdx=0;
+
+const ship={x:0,y:94,vx:0,vy:0,heading:-Math.PI/2,angVel:0,rudder:0,sailAng:0,sailVel:0,speed:0,stuckT:0,forceT:0,wakeAcc:0,heel:0,pitch:0,trim:0.7,tackSide:1,eff:0,aoa:0,awaSign:-1};
+const EYE0=0.30,EYE1=0.62;
+const SAIL_MIN=0.10,SAIL_MAX=1.45,LUFF=0.13;
+function trimFor(aa){
+  const amt=clamp(aa-0.55,SAIL_MIN+0.02,SAIL_MAX);
+  return clamp(1-(amt-SAIL_MIN)/(SAIL_MAX-SAIL_MIN),0,1);
+}
+function effAoa(a){
+  if(a<0.10)return (a/0.10)*(a/0.10)*0.15;
+  if(a<0.45)return (a-0.10)/0.35;
+  if(a<0.85)return 1;
+  if(a<1.70)return 1-0.62*(a-0.85)/0.85;
+  if(a<2.60)return 0.38-0.18*(a-1.70)/0.90;
+  return 0.20;
+}
+function sailTarget(awa,aa){
+  if(Math.abs(awa)>0.3)ship.tackSide=Math.sign(awa);
+  const cap=Math.max(aa-0.06,0.04);
+  const amt=Math.min(SAIL_MIN+(SAIL_MAX-SAIL_MIN)*(1-ship.trim),cap);
+  return -ship.tackSide*amt;
+}
+
+/* 波浪：GPU 与 CPU 共用同一组参数 */
+const WAVE=[[0.0,0.55,0.085,1.6],[0.62,1.15,0.05,2.1],[-1.05,2.0,0.027,2.7],[0.35,4.3,0.011,3.6]];
+function waterH(x,z){
+  const c=Math.cos(wind.dir),s=Math.sin(wind.dir);
+  const g=clamp((gustFactor(x,z)-1)/0.38,0,1);
+  let h=0;
+  for(const w of WAVE){
+    const wr=Math.cos(w[0]),ws=Math.sin(w[0]);
+    h+=Math.sin((x*(c*wr-s*ws)+z*(s*wr+c*ws))*w[1]+t*w[3])*w[2];
+  }
+  return h*(0.8+0.7*g);
+}
+
+/* ================= three 基础 ================= */
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(2,devicePixelRatio||1));
+renderer.setSize(innerWidth,innerHeight);
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.12;
+renderer.domElement.id='gl';
+document.body.prepend(renderer.domElement);
+
+const scene=new THREE.Scene();
+const FOG_COL=new THREE.Color(0x4a3b34);
+scene.fog=new THREE.Fog(FOG_COL,130,760);
+const camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,0.1,3000);
+
+const sunDir=new THREE.Vector3(-0.6,0.17,0.34).normalize();
+const sunLight=new THREE.DirectionalLight(0xffb37a,1.6);
+sunLight.position.copy(sunDir).multiplyScalar(300);
+scene.add(sunLight);
+scene.add(new THREE.HemisphereLight(0x8fb5c0,0x0f2830,0.6));
+const fill=new THREE.DirectionalLight(0x35555f,0.45);
+fill.position.set(220,140,-120);scene.add(fill);
+
+/* ================= 天空 + 星 ================= */
+const skyGroup=new THREE.Group();scene.add(skyGroup);
+const sky=new THREE.Mesh(new THREE.SphereGeometry(1400,28,14),new THREE.ShaderMaterial({
+  side:THREE.BackSide,depthWrite:false,
+  uniforms:{
+    uZen:{value:new THREE.Color(0x123349)},uHor:{value:new THREE.Color(0x2c4353)},
+    uWarm:{value:new THREE.Color(0xff9a54)},uSunDir:{value:sunDir},uSunCol:{value:new THREE.Color(0xffd9a8)},
+  },
+  vertexShader:`varying vec3 vDir;void main(){vDir=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+  fragmentShader:`
+    uniform vec3 uZen,uHor,uWarm,uSunDir,uSunCol;varying vec3 vDir;
+    void main(){
+      vec3 d=normalize(vDir);float h=max(d.y,0.0);
+      vec3 col=mix(uHor,uZen,pow(h,0.5));
+      col=mix(col,uWarm,smoothstep(0.30,0.0,d.y)*0.9);
+      float sd=max(dot(d,uSunDir),0.0);
+      col+=uSunCol*(pow(sd,600.0)*1.4+pow(sd,40.0)*0.5+pow(sd,6.0)*0.18);
+      gl_FragColor=vec4(col,1.0);
+      #include <colorspace_fragment>
+    }`
+}));
+sky.renderOrder=-2;skyGroup.add(sky);
+{
+  const n=280,p=new Float32Array(n*3);
+  for(let i=0;i<n;i++){
+    const az=Math.random()*TAU,el=0.28+Math.random()*0.65,r=1300;
+    p[i*3]=Math.cos(az)*Math.cos(el)*r;p[i*3+1]=Math.sin(el)*r;p[i*3+2]=Math.sin(az)*Math.cos(el)*r;
+  }
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(p,3));
+  const stars=new THREE.Points(g,new THREE.PointsMaterial({color:0xcfe0e8,size:2.1,sizeAttenuation:false,transparent:true,opacity:0.65,fog:false,depthWrite:false}));
+  stars.renderOrder=-1;skyGroup.add(stars);
+}
+
+/* ================= 水面 ================= */
+const waterUni={
+  uT:{value:0},uW:{value:new THREE.Vector2(1,0)},
+  uGD:{value:-999},uGW:{value:90},
+  uDeep:{value:new THREE.Color(0x0a3841)},uCrest:{value:new THREE.Color(0xbfeadd)},
+  uSunDir:{value:sunDir},uSunCol:{value:new THREE.Color(0xffc189)},
+  uHor:{value:new THREE.Color(0xe0925e)},
+  uFogCol:{value:FOG_COL},uFogN:{value:130},uFogF:{value:760},
+};
+const waveGLSL=WAVE.map(w=>{
+  const c=Math.cos(w[0]).toFixed(4),s=Math.sin(w[0]).toFixed(4);
+  return `h+=sin(dot(p,vec2(uW.x*${c}-uW.y*${s},uW.x*${s}+uW.y*${c}))*${w[1].toFixed(4)}+t*${w[3].toFixed(4)})*${w[2].toFixed(4)};`;
+}).join('\n  ');
+const water=new THREE.Mesh(new THREE.PlaneGeometry(336,256,150,114),new THREE.ShaderMaterial({
+  uniforms:waterUni,
+  vertexShader:`
+    uniform float uT,uGD,uGW;uniform vec2 uW;
+    varying vec3 vP;varying float vH,vG,vD;
+    float waveH(vec2 p,float t,float g){
+      float h=0.0;
+      ${waveGLSL}
+      return h*(0.8+0.7*g);
+    }
+    void main(){
+      vec3 pos=position;
+      float pr=pos.x*uW.x+pos.z*uW.y;
+      float g=smoothstep(uGD,uGD+26.0,pr)*(1.0-smoothstep(uGD+uGW,uGD+uGW+26.0,pr));
+      vG=g;
+      float h=waveH(pos.xz,uT,g);
+      pos.y+=h;vH=h;
+      vec4 mv=modelViewMatrix*vec4(pos,1.0);
+      vD=-mv.z;vP=pos;
+      gl_Position=projectionMatrix*mv;
+    }`,
+  fragmentShader:`
+    uniform float uT,uFogN,uFogF,uGD,uGW;uniform vec2 uW;
+    uniform vec3 uDeep,uCrest,uSunDir,uSunCol,uHor,uFogCol;
+    varying vec3 vP;varying float vH,vG,vD;
+    float hash21(vec2 p){p=fract(p*vec2(127.1,311.7));p+=dot(p,p+34.23);return fract(p.x*p.y);}
+    float vnoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);
+      return mix(mix(hash21(i),hash21(i+vec2(1,0)),f.x),mix(hash21(i+vec2(0,1)),hash21(i+vec2(1,1)),f.x),f.y);}
+    void main(){
+      vec2 perp=vec2(-uW.y,uW.x);
+      vec2 q=vec2(dot(vP.xz,uW)*0.5-uT*1.2, dot(vP.xz,perp)*0.35);
+      float st=vnoise(q*vec2(0.35,2.2))*vnoise(q*vec2(0.08,4.5)+7.31);
+      st=smoothstep(0.18,0.85,st);
+      float hF=smoothstep(-0.14,0.18,vH);
+      vec3 col=mix(uDeep,uCrest,hF*0.55+st*(0.25+0.4*vG));
+      col+=uCrest*st*(0.06+0.22*vG);
+      vec3 N=normalize(cross(dFdx(vP),dFdy(vP)));
+      if(N.y<0.0)N=-N;
+      vec3 V=normalize(cameraPosition-vP);
+      float spec=pow(max(dot(N,normalize(V+uSunDir)),0.0),90.0)*(0.35+1.15*vG);
+      col+=uSunCol*spec;
+      col=mix(col,uHor,pow(1.0-max(dot(N,V),0.0),3.0)*0.4);
+      col=mix(col,uFogCol,smoothstep(uFogN,uFogF,vD));
+      gl_FragColor=vec4(col,1.0);
+      #include <colorspace_fragment>
+    }`
+}));
+water.geometry.rotateX(-Math.PI/2);
+water.frustumCulled=false;
+scene.add(water);
+
+/* ================= 岸 / 山 / 树 ================= */
+{
+  const grassMat=new THREE.MeshLambertMaterial({color:0x26381e});
+  const banks=[[0,-545,1600,880],[0,545,1600,880],[-473,0,660,214],[473,0,660,214]];
+  for(const[x,z,w,h]of banks){
+    const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),grassMat);
+    m.rotation.x=-Math.PI/2;m.position.set(x,0.55,z);scene.add(m);
+  }
+  const wallMat=new THREE.MeshLambertMaterial({color:0x4a3826});
+  for(const[x,z,w,h]of[[0,-106,300,1.5],[0,106,300,1.5],[-146,0,1.5,214],[146,0,1.5,214]]){
+    const m=new THREE.Mesh(new THREE.BoxGeometry(w,1.5,h),wallMat);
+    m.position.set(x,0.05,z);scene.add(m);
+  }
+  const mtnMat=new THREE.MeshLambertMaterial({color:0x35302f,flatShading:true});
+  for(let i=0;i<11;i++){
+    const az=(i/11)*TAU+0.3;
+    const dist=420+Math.random()*180;
+    const mx=Math.cos(az)*dist,mz=Math.sin(az)*dist;
+    const west=mx<-250;
+    const h=west?18+Math.random()*16:40+Math.random()*55;
+    const m=new THREE.Mesh(new THREE.ConeGeometry(60+Math.random()*80,h,5),mtnMat);
+    m.position.set(mx,h*0.4-4,mz);m.rotation.y=Math.random()*TAU;scene.add(m);
+  }
+  const trunkMat=new THREE.MeshLambertMaterial({color:0x3a2b1e});
+  const leafMat=new THREE.MeshLambertMaterial({color:0x1c2f16,flatShading:true});
+  const leafMat2=new THREE.MeshLambertMaterial({color:0x27401c,flatShading:true});
+  const treeSpots=[];
+  for(let i=0;i<16;i++){
+    let x,z,tries=0;
+    do{
+      if(Math.random()<0.5){x=(Math.random()<0.5?-1:1)*(152+Math.random()*230);z=-100+Math.random()*200}
+      else{z=(Math.random()<0.5?-1:1)*(112+Math.random()*200);x=-160+Math.random()*320}
+      tries++;
+    }while(tries<20&&treeSpots.some(p=>Math.hypot(p[0]-x,p[1]-z)<26));
+    treeSpots.push([x,z]);
+    const s=1.4+Math.random()*2.6;
+    const tr=new THREE.Group();
+    const trunk=new THREE.Mesh(new THREE.CylinderGeometry(0.12*s,0.18*s,1.6*s,5),trunkMat);
+    trunk.position.y=0.8*s;tr.add(trunk);
+    const c1=new THREE.Mesh(new THREE.SphereGeometry(1.15*s,6,5),Math.random()<0.5?leafMat:leafMat2);
+    c1.position.y=2.1*s;c1.scale.y=0.85;tr.add(c1);
+    const c2=new THREE.Mesh(new THREE.SphereGeometry(0.75*s,6,5),leafMat);
+    c2.position.set(0.5*s,2.8*s,0.3*s);tr.add(c2);
+    tr.position.set(x,0.55,z);tr.rotation.y=Math.random()*TAU;scene.add(tr);
+  }
+  const reedMat=new THREE.MeshLambertMaterial({color:0x3d5a2c});
+  for(const[rx,rz]of[[28,103],[-30,102.5],[95,-20],[-95,-20],[60,-102],[-60,-101.5]]){
+    for(let i=0;i<5;i++){
+      const reed=new THREE.Mesh(new THREE.ConeGeometry(0.05,1.5+Math.random()*0.8,4),reedMat);
+      reed.position.set(rx+(Math.random()-.5)*1.4,1.0,rz+(Math.random()-.5)*1.0);
+      reed.rotation.z=(Math.random()-.5)*0.4;scene.add(reed);
+    }
+  }
+  const woodMat=new THREE.MeshLambertMaterial({color:0x5d452e});
+  const dock=new THREE.Group();
+  const deckM=new THREE.Mesh(new THREE.BoxGeometry(3.2,0.16,9),woodMat);
+  deckM.position.set(0,0.62,-1);dock.add(deckM);
+  for(const[dx,dz]of[[-1.3,-5],[1.3,-5],[-1.3,2.5],[1.3,2.5]]){
+    const pile=new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.14,2.2,6),woodMat);
+    pile.position.set(dx,-0.3,dz);dock.add(pile);
+  }
+  dock.position.set(20,0,109);scene.add(dock);
+}
+
+/* ================= 帆船 ================= */
+const boat=new THREE.Group();boat.rotation.order='YZX';scene.add(boat);
+let mainSail,jibSail,mainRot,jibMesh,flagG,rudderMesh,mainSailMesh;
+{
+  const hullShape=new THREE.Shape();
+  hullShape.moveTo(1.3,0);
+  hullShape.quadraticCurveTo(0.6,0.3,-0.2,0.32);
+  hullShape.quadraticCurveTo(-1.0,0.32,-1.15,0.18);
+  hullShape.lineTo(-1.15,-0.18);
+  hullShape.quadraticCurveTo(-1.0,-0.32,-0.2,-0.32);
+  hullShape.quadraticCurveTo(0.6,-0.3,1.3,0);
+  const hullGeo=new THREE.ExtrudeGeometry(hullShape,{depth:0.34,bevelEnabled:true,bevelThickness:0.1,bevelSize:0.09,bevelSegments:2,steps:1});
+  hullGeo.rotateX(-Math.PI/2);
+  const hull=new THREE.Mesh(hullGeo,new THREE.MeshPhongMaterial({color:0xf2ead8,shininess:35}));
+  hull.position.y=-0.15;boat.add(hull);
+  const deckGeo=new THREE.ShapeGeometry(hullShape);deckGeo.rotateX(-Math.PI/2);
+  const deck=new THREE.Mesh(deckGeo,new THREE.MeshLambertMaterial({color:0xd6cab0}));
+  deck.position.y=0.185;boat.add(deck);
+  const keel=new THREE.Mesh(new THREE.BoxGeometry(0.6,0.5,0.07),new THREE.MeshLambertMaterial({color:0x22303a}));
+  keel.position.set(-0.1,-0.5,0);boat.add(keel);
+  rudderMesh=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.3,0.26),new THREE.MeshLambertMaterial({color:0x1c262e}));
+  rudderMesh.position.set(-1.2,-0.28,0);boat.add(rudderMesh);
+  const sailMainG=new THREE.Group();sailMainG.position.set(0.18,0.30,0);boat.add(sailMainG);
+  const mast=new THREE.Mesh(new THREE.CylinderGeometry(0.026,0.036,2.45,6),new THREE.MeshLambertMaterial({color:0x4a4238}));
+  mast.position.y=1.22;sailMainG.add(mast);
+  mainRot=new THREE.Group();sailMainG.add(mainRot);
+  const boom=new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.022,1.2,6),mast.material);
+  boom.rotation.z=Math.PI/2;boom.position.x=-0.6;boom.position.y=0.14;mainRot.add(boom);
+  const jibG=new THREE.Group();jibG.position.set(0.62,0.30,0);boat.add(jibG);
+  function sailGeo(nu,nv){
+    const geo=new THREE.BufferGeometry();
+    geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array((nu+1)*(nv+1)*3),3));
+    const uv=new Float32Array((nu+1)*(nv+1)*2);
+    const idx=[];
+    for(let j=0;j<=nv;j++)for(let i=0;i<=nu;i++){
+      const k=j*(nu+1)+i;uv[k*2]=i/nu;uv[k*2+1]=j/nv;
+      if(i<nu&&j<nv){const a=k,b=k+1,c=k+nu+1,d=c+1;idx.push(a,c,b,b,c,d)}
+    }
+    geo.setIndex(idx);geo.setAttribute('uv',new THREE.BufferAttribute(uv,2));
+    return geo;
+  }
+  mainSail=sailGeo(11,9);jibSail=sailGeo(9,8);
+  const sc=document.createElement('canvas');sc.width=sc.height=256;
+  const sg=sc.getContext('2d');
+  sg.fillStyle='#f6efe0';sg.fillRect(0,0,256,256);
+  sg.strokeStyle='rgba(60,50,40,0.08)';sg.lineWidth=2;
+  for(const yy of[70,140,205]){sg.beginPath();sg.moveTo(0,yy);sg.lineTo(256,yy);sg.stroke()}
+  sg.fillStyle='#ff7a3d';sg.font='900 120px "Noto Serif SC",serif';
+  sg.textAlign='center';sg.textBaseline='middle';sg.fillText('7',128,105);
+  const sailTex=new THREE.CanvasTexture(sc);sailTex.colorSpace=THREE.SRGBColorSpace;
+  const jc=document.createElement('canvas');jc.width=jc.height=64;
+  const jg=jc.getContext('2d');jg.fillStyle='#f4ede0';jg.fillRect(0,0,64,64);
+  jg.strokeStyle='rgba(60,50,40,0.08)';jg.beginPath();jg.moveTo(0,32);jg.lineTo(64,32);jg.stroke();
+  const jibTex=new THREE.CanvasTexture(jc);jibTex.colorSpace=THREE.SRGBColorSpace;
+  mainSailMesh=new THREE.Mesh(mainSail,new THREE.MeshLambertMaterial({map:sailTex,side:THREE.DoubleSide}));
+  mainSailMesh.position.y=0.14;mainRot.add(mainSailMesh);
+  jibMesh=new THREE.Mesh(jibSail,new THREE.MeshLambertMaterial({map:jibTex,side:THREE.DoubleSide}));
+  jibMesh.position.y=0.06;jibG.add(jibMesh);
+  flagG=new THREE.Group();flagG.position.set(0.18,2.78,0);boat.add(flagG);
+  const flag=new THREE.Mesh(new THREE.PlaneGeometry(0.42,0.15),new THREE.MeshBasicMaterial({color:0xff7a3d,side:THREE.DoubleSide}));
+  flag.geometry.translate(0.21,0,0);flagG.add(flag);
+}
+function updateSailGeo(geo,nu,nv,len,H,exp,dirX,back,backExp,belly){
+  const p=geo.attributes.position.array;let k=0;
+  for(let j=0;j<=nv;j++){
+    const v=j/nv,ch=len*Math.pow(1-v,exp);
+    for(let i=0;i<=nu;i++){
+      const u=i/nu;
+      p[k++]=dirX*(back*Math.pow(1-v,backExp)+ch*u);
+      p[k++]=v*H;
+      p[k++]=belly*Math.sin(Math.PI*u)*Math.pow(Math.max(Math.sin(Math.PI*Math.min(v*1.12,1)),0),0.7);
+    }
+  }
+  geo.attributes.position.needsUpdate=true;
+  geo.computeVertexNormals();
+}
+
+/* ================= 浮标与门标识 ================= */
+const matBuoy=new THREE.MeshLambertMaterial({color:0xe85a1f});
+const matBuoyDark=new THREE.MeshLambertMaterial({color:0x7a2f10});
+const matLampDim=new THREE.MeshBasicMaterial({color:0x6b4030});
+const matLampHot=new THREE.MeshBasicMaterial({color:0xffd9a0});
+const lampMeshes=[];
+function makeBuoy(){
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.ConeGeometry(0.42,1.05,10),matBuoy);body.position.y=0.45;
+  const base=new THREE.Mesh(new THREE.CylinderGeometry(0.34,0.5,0.35,10),matBuoyDark);base.position.y=0.08;
+  const lamp=new THREE.Mesh(new THREE.SphereGeometry(0.1,8,8),matLampDim);lamp.position.y=1.05;
+  g.add(body,base,lamp);lampMeshes.push(lamp);
+  scene.add(g);return g;
+}
+/* 浮标：0,1=起终点线两端；2=上风标；3=三角标 */
+const allBuoys=[];
+function buildBuoys(){
+  const add=(x,y)=>{
+    const grp=makeBuoy();grp.position.set(x,0,y);
+    allBuoys.push({grp,x,y});
+  };
+  add(gates[0].ax,gates[0].ay);
+  add(gates[0].bx,gates[0].by);
+  add(gates[1].cx,gates[1].cy);
+  add(gates[2].cx,gates[2].cy);
+}
+buildBuoys();
+/* 起终点线常显细亮线 */
+const finishLine=new THREE.Mesh(new THREE.BoxGeometry(1,0.06,0.5),new THREE.MeshBasicMaterial({color:0xece3cf,transparent:true,opacity:0.4,depthWrite:false}));
+{
+  const g0=gates[0];
+  const len=Math.hypot(g0.abx,g0.aby);
+  finishLine.scale.x=len;
+  finishLine.position.set(g0.cx,0.36,g0.cy);
+  finishLine.rotation.y=-Math.atan2(g0.aby,g0.abx);
+}
+scene.add(finishLine);
+/* 线门：橙色虚线带 */
+const gateBand=(()=>{
+  const c=document.createElement('canvas');c.width=256;c.height=32;
+  const g=c.getContext('2d');
+  const rr=(x,y,w,h,r)=>{g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath()};
+  for(let i=0;i<6;i++){g.fillStyle='#ff9a4d';rr(i*44+6,10,26,12,6);g.fill()}
+  const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false,side:THREE.DoubleSide}));
+  m.rotation.x=-Math.PI/2;m.renderOrder=3;m.visible=false;scene.add(m);return m;
+})();
+/* 环门：橙色发光圆环（半径=判定半径，所见即所判） */
+const markRing=new THREE.Mesh(
+  new THREE.RingGeometry(RING_R-0.55,RING_R,64),
+  new THREE.MeshBasicMaterial({color:0xff8a3d,transparent:true,opacity:0.6,side:THREE.DoubleSide,depthWrite:false})
+);
+markRing.rotation.x=-Math.PI/2;markRing.renderOrder=3;markRing.visible=false;scene.add(markRing);
+/* 环门锁定后的内圈淡光（提示"已锁定，请过浮标"） */
+const ringLock=new THREE.Mesh(
+  new THREE.RingGeometry(1.2,RING_R-0.7,48),
+  new THREE.MeshBasicMaterial({color:0xffc189,transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false})
+);
+ringLock.rotation.x=-Math.PI/2;ringLock.renderOrder=3;scene.add(ringLock);
+/* 过门方向箭头（线门放在出航侧；环门立在浮标旁指向过标方向） */
+const gateArrow=new THREE.Mesh(new THREE.ConeGeometry(0.55,1.5,4),new THREE.MeshBasicMaterial({color:0xff8a3d}));
+gateArrow.rotation.z=-Math.PI/2;gateArrow.visible=false;scene.add(gateArrow);
+const gateLight=new THREE.PointLight(0xff9040,50,30,2);scene.add(gateLight);
+function refreshGateVisuals(){
+  const g=gates[gateIdx];
+  if(g.mark){
+    markRing.visible=true;
+    markRing.position.set(g.cx,0.36,g.cy);
+    gateBand.visible=false;
+  }else{
+    gateBand.visible=true;
+    const len=Math.hypot(g.abx,g.aby),ang=Math.atan2(g.aby,g.abx);
+    gateBand.scale.set(len+3,2.4,1);
+    gateBand.position.set(g.cx,0.34,g.cy);
+    gateBand.rotation.z=-ang;
+    markRing.visible=false;
+  }
+  gateArrow.position.set(g.cx+g.nx*6,0.5,g.cy+g.ny*6);
+  gateArrow.rotation.y=-Math.atan2(g.ny,g.nx);
+  gateArrow.visible=true;
+  gateLight.position.set(g.cx,1.3,g.cy);
+}
+
+/* ================= 泡沫粒子 + 风纹线 ================= */
+const FOAMN=260;
+const foamPos=new Float32Array(FOAMN*3),foamSize=new Float32Array(FOAMN),foamA=new Float32Array(FOAMN);
+const foamP=[];for(let i=0;i<FOAMN;i++)foamP.push({on:false,x:0,z:0,vx:0,vz:0,t:0,life:1,r:0.1});
+let foamI=0;
+const foamGeo=new THREE.BufferGeometry();
+foamGeo.setAttribute('position',new THREE.BufferAttribute(foamPos,3));
+foamGeo.setAttribute('aSize',new THREE.BufferAttribute(foamSize,1));
+foamGeo.setAttribute('aAlpha',new THREE.BufferAttribute(foamA,1));
+const foamPts=new THREE.Points(foamGeo,new THREE.ShaderMaterial({
+  transparent:true,depthWrite:false,
+  vertexShader:`attribute float aSize,aAlpha;varying float vA;
+    void main(){vA=aAlpha;vec4 mv=modelViewMatrix*vec4(position,1.);
+    gl_PointSize=aSize*(160.0/max(1.0,-mv.z));gl_Position=projectionMatrix*mv;}`,
+  fragmentShader:`varying float vA;
+    void main(){float d=length(gl_PointCoord-0.5);gl_FragColor=vec4(0.93,0.97,0.95,smoothstep(0.5,0.12,d)*vA);}`
+}));
+foamPts.frustumCulled=false;foamPts.renderOrder=4;scene.add(foamPts);
+function addFoam(x,z,vx,vz){
+  const f=foamP[foamI];foamI=(foamI+1)%FOAMN;
+  f.on=true;f.x=x;f.z=z;f.vx=vx;f.vz=vz;f.t=0;f.life=1.1+Math.random()*1.2;f.r=0.05+Math.random()*0.1;
+}
+const SN=150;
+const stkPos=new Float32Array(SN*4*3),stkCol=new Float32Array(SN*4*3);
+const stkS=[];for(let i=0;i<SN;i++)stkS.push({x:0,z:0,ph:Math.random()*1.3,sp:0.6+Math.random()*0.8,len:1.5+Math.random()*2.5});
+function resetStk(s){s.x=-140+Math.random()*280;s.z=-100+Math.random()*200;s.ph=-Math.random()*1.2}
+stkS.forEach(resetStk);
+const stkGeo=new THREE.BufferGeometry();
+stkGeo.setAttribute('position',new THREE.BufferAttribute(stkPos,3));
+stkGeo.setAttribute('color',new THREE.BufferAttribute(stkCol,3));
+const stkLines=new THREE.LineSegments(stkGeo,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
+stkLines.frustumCulled=false;stkLines.renderOrder=4;scene.add(stkLines);
+function updateWindFX(dt){
+  const u=windUnit();
+  for(let i=0;i<SN;i++){
+    const s=stkS[i];
+    s.ph+=dt*0.42;
+    s.x-=u.x*wind.spd*0.85*s.sp*dt;s.z-=u.y*wind.spd*0.85*s.sp*dt;
+    if(s.ph>1||Math.abs(s.x)>150||Math.abs(s.z)>110)resetStk(s);
+    const life=Math.max(0,s.ph);
+    const fade=Math.min(1,life*3,(1-life)*3)*(life>0?1:0);
+    const hot=gustFactor(s.x,s.z)>1;
+    const b=fade*(hot?0.55:0.13);
+    const lx=u.x*s.len,lz=u.y*s.len;
+    const mx=s.x+lx*0.18,mz=s.z+lz*0.18;
+    const base=i*12;
+    const P=[[s.x-lx*0.5,s.z-lz*0.5,b*0.15],[mx,mz,b],[mx,mz,b],[s.x+lx*0.5,s.z+lz*0.5,b*0.15]];
+    for(let k=0;k<4;k++){
+      stkPos[base+k*3]=P[k][0];stkPos[base+k*3+1]=0.3;stkPos[base+k*3+2]=P[k][1];
+      stkCol[base+k*3]=P[k][2]*0.92;stkCol[base+k*3+1]=P[k][2];stkCol[base+k*3+2]=P[k][2]*0.95;
+    }
+  }
+  stkGeo.attributes.position.needsUpdate=true;
+  stkGeo.attributes.color.needsUpdate=true;
+}
+
+/* ================= 飞鸟 ================= */
+const birds=[];
+{
+  const bMat=new THREE.MeshBasicMaterial({color:0x241f24,side:THREE.DoubleSide});
+  for(let i=0;i<3;i++){
+    const g=new THREE.Group();
+    const wgeo=new THREE.PlaneGeometry(0.9,0.26);wgeo.rotateX(-Math.PI/2);wgeo.translate(0.45,0,0);
+    const wl=new THREE.Mesh(wgeo,bMat),wr=new THREE.Mesh(wgeo,bMat);
+    wr.scale.x=-1;g.add(wl,wr);
+    scene.add(g);
+    birds.push({g,wl,wr,r:55+i*22,h:26+i*7,ph:Math.random()*TAU,sp:0.05+Math.random()*0.04,fl:6+Math.random()*2});
+  }
+}
+
+/* ================= 船物理 ================= */
+function initGatePrev(){
+  const g=gates[gateIdx];
+  g.prevS=(ship.x-g.cx)*g.nx+(ship.y-g.cy)*g.ny;
+  g.inRing=false;
+}
+function resetTrimTo(heading){
+  const awa=norm(heading-wind.dir);
+  ship.awaSign=Math.sign(awa||1);
+  ship.trim=trimFor(Math.abs(awa));
+  ship.sailAng=sailTarget(awa,Math.abs(awa));
+  ship.aoa=Math.max(Math.abs(awa)-Math.abs(ship.sailAng),0);
+  ship.eff=effAoa(ship.aoa);
+}
+function placeShipStart(){
+  const L=gates[0];
+  const ux=Math.cos(wind.base),uy=Math.sin(wind.base);
+  ship.x=L.cx-ux*14;ship.y=L.cy-uy*14;
+  ship.heading=norm(wind.dir+0.95);
+  ship.vx=ship.vy=ship.angVel=ship.sailVel=ship.heel=0;ship.rudder=0;
+  resetTrimTo(ship.heading);
+  initGatePrev();
+}
+let rescueCool=0;
+function rescue(){
+  const g=gates[gateIdx];
+  ship.x=g.cx-g.nx*11;ship.y=g.cy-g.ny*11;
+  ship.vx=ship.vy=ship.angVel=ship.sailVel=0;
+  const brg=Math.atan2(g.ny,g.nx);
+  const beat=0.95;
+  const rel=norm(brg-wind.dir);
+  ship.heading=Math.abs(rel)<beat?norm(wind.dir+(rel>=0?beat:-beat)):brg;
+  resetTrimTo(ship.heading);
+  initGatePrev();refreshGateVisuals();rescueCool=2;toast('已送回航线上');
+}
+let prevSailSign=1;
+function updateShip(dt,allowInput){
+  if(allowInput){
+    const rud=(inp.L?-1:0)+(inp.R?1:0);
+    ship.rudder=lerp(ship.rudder,clamp(rud,-1,1),1-Math.exp(-10*dt));
+    if(inp.SI)ship.trim=clamp(ship.trim+1.6*dt,0,1);
+    if(inp.SO)ship.trim=clamp(ship.trim-1.6*dt,0,1);
+  }
+  const hx=Math.cos(ship.heading),hy=Math.sin(ship.heading);
+  const px=-hy,py=hx;
+  let vA=ship.vx*hx+ship.vy*hy,vL=ship.vx*px+ship.vy*py;
+  const awa=norm(ship.heading-wind.dir),aa=Math.abs(awa);
+  if(Math.abs(awa)>0.02)ship.awaSign=awa>0?1:-1;
+  const wN=wind.spd/10*gustFactor(ship.x,ship.y);
+  const sT=sailTarget(awa,aa);
+  ship.sailVel+=((sT-ship.sailAng)*40-ship.sailVel*7.0)*dt;
+  ship.sailAng+=ship.sailVel*dt;
+  const sgn=Math.sign(ship.sailAng)||1;
+  if(sgn!==prevSailSign&&Math.abs(ship.sailVel)>2.2&&ship.speed>2){
+    AU.tack();
+    for(let i=0;i<6;i++)addFoam(ship.x+px*1.4*(Math.random()-.5)*2,ship.y+py*1.4*(Math.random()-.5)*2,0,0);
+  }
+  prevSailSign=sgn;
+  const sailMag=Math.abs(ship.sailAng);
+  const aoa=Math.max(aa-sailMag,0);
+  const m=ss(EYE0,EYE1,aa);
+  const eff=effAoa(aoa)*m;
+  ship.aoa=aoa;ship.eff=eff;
+  let drive=eff*wN*7.5-(1-m)*0.9*wN;
+  if(aoa<0.07)drive-=0.5*wN*m;
+  vA+=drive*dt;vA-=vA*1.05*dt;
+  if(vA<0)vA-=vA*1.8*dt;
+  vL+=Math.sign(awa||1)*eff*wN*1.6*dt;vL-=vL*2.8*dt;
+  const stern=vA<-0.25;
+  ship.angVel+=ship.rudder*2.6*(0.55+Math.min(Math.abs(vA)/6,1))*dt*(stern?-1:1);
+  ship.angVel-=ship.angVel*3.2*dt;
+  if(aa<0.35&&Math.abs(vA)<0.6)ship.angVel+=ship.awaSign*0.6*dt;
+  ship.heading=norm(ship.heading+ship.angVel*dt);
+  ship.vx=hx*vA+px*vL;ship.vy=hy*vA+py*vL;
+  ship.x+=ship.vx*dt;ship.y+=ship.vy*dt;
+  ship.speed=Math.hypot(ship.vx,ship.vy);
+  const R=1.5;let hit=0;
+  if(ship.x<-BOUND_X+R){ship.x=-BOUND_X+R;ship.vx=Math.abs(ship.vx)*0.35;ship.vy*=0.85;hit=Math.abs(vA)}
+  if(ship.x>BOUND_X-R){ship.x=BOUND_X-R;ship.vx=-Math.abs(ship.vx)*0.35;ship.vy*=0.85;hit=Math.max(hit,Math.abs(vA))}
+  if(ship.y<-BOUND_Z+R){ship.y=-BOUND_Z+R;ship.vy=Math.abs(ship.vy)*0.35;ship.vx*=0.85;hit=Math.max(hit,Math.abs(vA))}
+  if(ship.y>BOUND_Z-R){ship.y=BOUND_Z-R;ship.vy=-Math.abs(ship.vy)*0.35;ship.vx*=0.85;hit=Math.max(hit,Math.abs(vA))}
+  if(hit>7){AU.hit();for(let i=0;i<10;i++)addFoam(ship.x,ship.y,(Math.random()-.5)*6,(Math.random()-.5)*6)}
+  for(const b of allBuoys){
+    const dx=ship.x-b.x,dy=ship.y-b.y,d=Math.hypot(dx,dy);
+    if(d<0.95&&d>0.01){
+      const nx2=dx/d,ny2=dy/d;
+      ship.x=b.x+nx2*0.95;ship.y=b.y+ny2*0.95;
+      const vd=ship.vx*nx2+ship.vy*ny2;
+      if(vd<0){ship.vx-=nx2*vd*1.3;ship.vy-=ny2*vd*1.3}
+    }
+  }
+  if(ship.speed>0.5){
+    ship.wakeAcc+=dt*ship.speed*0.5;
+    const sx=ship.x-hx*1.1,sy=ship.y-hy*1.1;
+    while(ship.wakeAcc>1){
+      ship.wakeAcc--;
+      const s2=Math.random()<0.5?1:-1;
+      addFoam(sx+px*0.32*s2,sy+py*0.32*s2,px*1.4*s2+ship.vx*0.15,py*1.4*s2+ship.vy*0.15);
+    }
+  }
+  if(ship.speed>3.5&&Math.random()<0.4){
+    const bx=ship.x+hx*1.2;
+    addFoam(bx+px*0.4*(Math.random()<.5?1:-1),ship.y+hy*1.2+py*0.4,ship.vx*0.3,ship.vy*0.3);
+  }
+  const fw=waterH(ship.x+hx*1.2,ship.y+hy*1.2),bw=waterH(ship.x-hx*1.2,ship.y-hy*1.2);
+  const lw=waterH(ship.x-px*0.6,ship.y-py*0.6),rw=waterH(ship.x+px*0.6,ship.y+py*0.6);
+  const k=1-Math.exp(-6*dt);
+  ship.pitch=lerp(ship.pitch,Math.atan2(fw-bw,2.4)*0.85,k);
+  ship.heel=lerp(ship.heel,-Math.atan2(rw-lw,1.2)*0.7+Math.sign(awa||1)*eff*wN*0.11,k);
+  boat.position.set(ship.x,(fw+bw)*0.25+(lw+rw)*0.25-0.13,ship.y);
+  boat.rotation.y=-ship.heading;
+  boat.rotation.z=ship.pitch+Math.sin(t*1.9)*0.008;
+  boat.rotation.x=ship.heel;
+  rudderMesh.rotation.y=-ship.rudder*0.45;
+  mainRot.rotation.y=-ship.sailAng;
+  jibMesh.parent.rotation.y=ship.sailAng*0.85;
+  let belly=0.035+0.15*eff*wN;
+  if(eff<0.15)belly=0.012+0.02*Math.sin(t*24);
+  const bsgn=Math.sign(awa||1);
+  updateSailGeo(mainSail,11,9,1.18,2.3,0.85,-1,0,1,bsgn*belly);
+  updateSailGeo(jibSail,9,8,0.55,1.72,0.78,1,0.15,1.4,bsgn*belly*0.8);
+  flagG.rotation.y=ship.heading-wind.dir-Math.PI+Math.sin(t*9)*0.18;
+}
+/* 演示自动驾驶：迎风段走之字；环门瞄准 = 驶入环内后冲过浮标 */
+function autopilot(dt){
+  const g=gates[gateIdx];
+  const tx2=g.cx+g.nx*(g.mark?2:6),ty2=g.cy+g.ny*(g.mark?2:6);
+  const brg=Math.atan2(ty2-ship.y,tx2-ship.x);
+  const beat=0.95;
+  let des;
+  if(Math.abs(norm(brg-wind.dir))<beat){
+    const a=norm(wind.dir+beat),b=norm(wind.dir-beat);
+    const da=Math.abs(norm(brg-a)),db=Math.abs(norm(brg-b));
+    if(ship.apSide===undefined)ship.apSide=da<db?1:-1;
+    if(ship.apSide>0&&db<da-0.3)ship.apSide=-1;
+    else if(ship.apSide<0&&da<db-0.3)ship.apSide=1;
+    des=ship.apSide>0?a:b;
+  }else des=brg;
+  let d=norm(des-ship.heading);
+  if(ship.speed<1.2)ship.stuckT+=dt;else ship.stuckT=0;
+  if(ship.stuckT>2.5)ship.forceT=2.5;
+  if(ship.forceT>0){ship.forceT-=dt;d=1}
+  ship.rudder=lerp(ship.rudder,clamp(d*2.4,-1,1),1-Math.exp(-8*dt));
+  const awa=norm(ship.heading-wind.dir);
+  ship.trim=lerp(ship.trim,trimFor(Math.abs(awa)),1-Math.exp(-2.5*dt));
+}
+
+/* ================= 门判定与计圈 =================
+   线门：沿法线穿线（线段范围内）。
+   环门：dist<RING_R 驶入 → 锁定；锁定中沿进航段 s 过 0（越过圆心）→ 绕标成立；
+         未过心先出环（dist>RING_R+1）→ 解除锁定。 */
+let state='menu',paused=false,lapActive=false,lapNum=0,lapTime=0,totalDone=0,bannerT=0,toastT=0,cd=0,lastCd=-9;
+let best=null;try{const b=parseFloat(localStorage.getItem('hysf_best'));if(b>0)best=b}catch(e){}
+const flashes=[];
+function checkGates(){
+  const g=gates[gateIdx];
+  const s=(ship.x-g.cx)*g.nx+(ship.y-g.cy)*g.ny;
+  if(g.mark){
+    const dist=Math.hypot(ship.x-g.cx,ship.y-g.cy);
+    if(!g.inRing){
+      if(dist<RING_R)g.inRing=true;                    // 驶入环内 → 锁定
+    }else if(s>=0){                                    // 锁定中沿比赛方向越过圆心
+      g.inRing=false;
+      onGatePassed();
+    }else if(dist>RING_R+1){                           // 折返出环 → 解除
+      g.inRing=false;
+    }
+  }else{
+    if(g.prevS<0&&s>=0){
+      const tt=((ship.x-g.ax)*g.abx+(ship.y-g.ay)*g.aby)/g.len2;
+      if(tt>-0.05&&tt<1.05)onGatePassed();
+    }
+    g.prevS=s;
+  }
+}
+function onGatePassed(){
+  const done=gateIdx,g=gates[done];
+  flashes.push({x:g.cx,y:g.cy,t:0});
+  gateIdx=(gateIdx+1)%gates.length;
+  initGatePrev();refreshGateVisuals();
+  if(state!=='race')return;
+  if(done===0){
+    lapActive=true;lapNum++;lapTime=0;
+    bannerShow(lapNum===1?'比赛开始 · 迎风起航':`第 ${lapNum} 圈 · 起航`);
+    AU.gate();
+  }else if(done===gates.length-1){
+    const lt=lapTime,rec=!best||lt<best;
+    if(rec){best=lt;try{localStorage.setItem('hysf_best',best)}catch(e){}}
+    totalDone+=lt;lapTime=0;lapActive=false;
+    bannerShow(`第 ${lapNum} 圈 · ${fmt(lt)}${rec?' ｜ 新纪录':''}`);
+    AU.lap(rec);
+  }else{
+    AU.gate();
+    bannerShow(done===1?'已绕上风标 · 侧风段':'已绕三角标 · 冲线段');
+  }
+}
+function fmt(s){const m=Math.floor(s/60),ss2=s-m*60;return m+':'+(ss2<10?'0':'')+ss2.toFixed(1)}
+
+/* ================= HUD ================= */
+function mini(id,w,h){const c=$(id);c.width=w*2;c.height=h*2;c.style.width=w+'px';c.style.height=h+'px';return c.getContext('2d')}
+const cCtx=mini('cvCompass',92,92),mCtx=mini('cvMap',152,114),dCtx=mini('cvDial',116,116);
+const DIRS=['东','东南','南','西南','西','西北','北','东北'];
+const el={windTxt:$('windTxt'),lapLbl:$('lapLbl'),lapTime:$('lapTime'),totalTime:$('totalTime'),bestTime:$('bestTime'),
+  spFill:$('spFill'),spTxt:$('spTxt'),effPct:$('effPct'),effWord:$('effWord'),aoaTxt:$('aoaTxt'),
+  trimFill:$('trimFill'),trimPct:$('trimPct'),
+  objName:$('objName'),objDist:$('objDist'),
+  objArr:$('objArr'),gustTag:$('gustTag'),banner:$('banner'),toast:$('toast'),cdNum:$('cdNum'),edgeArr:$('edgeArr')};
+function drawCompass(){
+  const g=cCtx;g.setTransform(2,0,0,2,0,0);g.clearRect(0,0,92,92);g.translate(46,46);
+  g.strokeStyle='rgba(236,227,207,0.18)';g.lineWidth=1;
+  g.beginPath();g.arc(0,0,40,0,TAU);g.stroke();
+  for(let i=0;i<12;i++){const a=i*TAU/12;g.beginPath();g.moveTo(Math.cos(a)*35,Math.sin(a)*35);g.lineTo(Math.cos(a)*40,Math.sin(a)*40);g.stroke()}
+  const hA=ship.heading,wA=wind.dir;
+  g.strokeStyle='rgba(226,74,54,0.25)';g.lineWidth=4;
+  g.beginPath();g.arc(0,0,37,wA-EYE1,wA+EYE1);g.stroke();
+  g.strokeStyle='rgba(226,74,54,0.85)';
+  g.beginPath();g.arc(0,0,37,wA-EYE0,wA+EYE0);g.stroke();
+  g.fillStyle='rgba(236,227,207,0.55)';g.font='9px "IBM Plex Mono"';g.textAlign='center';g.fillText('北',0,-29);
+  g.save();g.rotate(wA);
+  g.strokeStyle='#ff7a3d';g.lineWidth=2.4;g.beginPath();g.moveTo(-24,0);g.lineTo(30,0);g.stroke();
+  g.fillStyle='#ff7a3d';g.beginPath();g.moveTo(36,0);g.lineTo(26,-4);g.lineTo(26,4);g.closePath();g.fill();g.restore();
+  g.save();g.rotate(hA);g.fillStyle='#7fd8c8';
+  g.beginPath();g.moveTo(20,0);g.lineTo(8,-6);g.lineTo(8,6);g.closePath();g.fill();g.restore();
+  g.fillStyle='rgba(236,227,207,0.6)';g.beginPath();g.arc(0,0,2,0,TAU);g.fill();
+  g.setTransform(1,0,0,1,0,0);
+}
+function drawDial(){
+  const g=dCtx;g.setTransform(2,0,0,2,0,0);g.clearRect(0,0,116,116);g.translate(58,58);
+  g.fillStyle='rgba(236,227,207,0.05)';g.beginPath();g.arc(0,0,52,0,TAU);g.fill();
+  const bands=[[0,EYE0,'rgba(226,74,54,0.55)'],[EYE0,EYE1,'rgba(226,74,54,0.16)'],[EYE1,1.05,'rgba(200,210,205,0.09)'],[1.05,2.6,'rgba(120,215,140,0.28)'],[2.6,Math.PI,'rgba(240,170,64,0.3)']];
+  for(const[b0,b1,col]of bands)for(const sg of[1,-1]){
+    g.fillStyle=col;g.beginPath();g.moveTo(0,0);
+    g.arc(0,0,48,-Math.PI/2+sg*b0,-Math.PI/2+sg*b1,sg<0);
+    g.closePath();g.fill();
+  }
+  g.strokeStyle='rgba(236,227,207,0.22)';g.lineWidth=1;g.beginPath();g.arc(0,0,48,0,TAU);g.stroke();
+  g.font='9px "IBM Plex Mono"';g.textAlign='center';
+  g.fillStyle='rgba(255,140,120,0.85)';g.fillText('顶风',0,-33);
+  g.fillStyle='rgba(160,225,175,0.8)';g.fillText('侧风',-40,3);g.fillText('侧风',40,3);
+  g.fillStyle='rgba(240,190,110,0.8)';g.fillText('顺风',0,42);
+  g.fillStyle='#7fd8c8';
+  g.beginPath();g.moveTo(0,-11);g.quadraticCurveTo(5,-3,4,8);g.lineTo(-4,8);g.quadraticCurveTo(-5,-3,0,-11);g.fill();
+  const awa=norm(ship.heading-wind.dir);
+  const eff=ship.eff,aoa=ship.aoa;
+  const bCol=(Math.abs(awa)<EYE0||aoa<LUFF)?'#e2503c':eff>0.92?'#8fd8a0':eff>0.55?'rgba(236,227,207,.9)':'#f0aa40';
+  g.save();g.rotate(Math.PI/2+ship.sailAng);
+  g.strokeStyle=bCol;g.lineWidth=3;g.lineCap='round';
+  g.beginPath();g.moveTo(3,0);g.lineTo(38,0);g.stroke();
+  g.beginPath();g.moveTo(38,-4.5);g.lineTo(38,4.5);g.stroke();
+  g.restore();
+  g.save();g.rotate(-awa);
+  g.strokeStyle='#ff7a3d';g.lineWidth=2.6;g.beginPath();g.moveTo(0,14);g.lineTo(0,-44);g.stroke();
+  g.fillStyle='#ff7a3d';g.beginPath();g.moveTo(0,-50);g.lineTo(-5,-40);g.lineTo(5,-40);g.closePath();g.fill();
+  g.restore();g.setTransform(1,0,0,1,0,0);
+}
+function drawMap(){
+  const g=mCtx;
+  const mx=v=>(v+152)*0.5,mz=v=>(v+114)*0.5;
+  g.setTransform(2,0,0,2,0,0);g.clearRect(0,0,152,114);
+  g.fillStyle='#26361f';g.fillRect(0,0,152,114);
+  g.fillStyle='#0d3439';g.fillRect(mx(-BOUND_X),mz(-BOUND_Z),BOUND_X,BOUND_Z);
+  /* 三角航迹 */
+  g.strokeStyle='rgba(255,122,61,0.3)';g.setLineDash([3,3]);g.lineWidth=1.2;
+  g.beginPath();
+  g.moveTo(mx(gates[0].cx),mz(gates[0].cy));
+  g.lineTo(mx(gates[1].cx),mz(gates[1].cy));
+  g.lineTo(mx(gates[2].cx),mz(gates[2].cy));
+  g.closePath();g.stroke();g.setLineDash([]);
+  /* 门：线门画线段，环门画圆环（当前高亮） */
+  for(let i=0;i<gates.length;i++){
+    const gt=gates[i];
+    if(gt.mark&&i!==gateIdx)continue;
+    const cur=i===gateIdx;
+    g.strokeStyle=cur?'#ff7a3d':'rgba(236,227,207,0.3)';
+    if(cur&&Math.sin(t*5)>0){g.shadowColor='#ff7a3d';g.shadowBlur=5}
+    if(gt.mark){
+      g.lineWidth=1.8;
+      g.beginPath();g.arc(mx(gt.cx),mz(gt.cy),RING_R*0.5,0,TAU);g.stroke();
+    }else{
+      g.lineWidth=cur?2.4:1.4;
+      g.beginPath();g.moveTo(mx(gt.ax),mz(gt.ay));g.lineTo(mx(gt.bx),mz(gt.by));g.stroke();
+    }
+    g.shadowBlur=0;
+  }
+  const sx=mx(ship.x),sy=mz(ship.y);
+  g.fillStyle='#f2ead8';g.beginPath();g.arc(sx,sy,2.4,0,TAU);g.fill();
+  g.strokeStyle='#f2ead8';g.lineWidth=1.4;
+  g.beginPath();g.moveTo(sx,sy);
+  g.lineTo(sx+Math.cos(ship.heading)*7,sy+Math.sin(ship.heading)*7);g.stroke();
+  g.save();g.translate(138,104);g.rotate(wind.dir+Math.PI);
+  g.strokeStyle='#ff7a3d';g.lineWidth=1.6;g.beginPath();g.moveTo(-7,0);g.lineTo(6,0);g.stroke();
+  g.fillStyle='#ff7a3d';g.beginPath();g.moveTo(9,0);g.lineTo(3,-3.5);g.lineTo(3,3.5);g.closePath();g.fill();
+  g.restore();g.setTransform(1,0,0,1,0,0);
+}
+const projV=new THREE.Vector3(),projS=new THREE.Vector3();
+function updateGuides(){
+  const g=gates[gateIdx];
+  projV.set(g.cx,0.6,g.cy).project(camera);
+  const behind=projV.z>1;
+  let sx=(projV.x*0.5+0.5)*innerWidth,sy=(-projV.y*0.5+0.5)*innerHeight;
+  if(behind){sx=innerWidth-sx;sy=innerHeight-sy}
+  const off=behind||sx<48||sx>innerWidth-48||sy<48||sy>innerHeight-48;
+  if(!off||state==='menu'){el.edgeArr.style.display='none'}
+  else{
+    const ang=Math.atan2(sy-innerHeight/2,sx-innerWidth/2);
+    el.edgeArr.style.display='block';
+    el.edgeArr.style.left=(clamp(sx,52,innerWidth-52)-17)+'px';
+    el.edgeArr.style.top=(clamp(sy,52,innerHeight-52)-17)+'px';
+    el.edgeArr.style.transform=`rotate(${ang*180/Math.PI+90}deg)`;
+  }
+  projS.set(ship.x,0.6,ship.y).project(camera);
+  const ang2=Math.atan2(-(projV.y-projS.y),projV.x-projS.x);
+  el.objArr.style.transform=`rotate(${ang2*180/Math.PI+90}deg)`;
+}
+function updateHUD(){
+  const awa=norm(ship.heading-wind.dir),aa=Math.abs(awa);
+  const eff=ship.eff,aoa=ship.aoa,sailMag=Math.abs(ship.sailAng);
+  const inG=gustFactor(ship.x,ship.y)>1;
+  el.windTxt.innerHTML=`${DIRS[((Math.round(norm(wind.dir)/(Math.PI/4))%8)+8)%8]}风 <b>${(wind.spd*(inG?1.38:1)*1.35).toFixed(1)}</b>kn`;
+  el.lapLbl.textContent=lapActive?`第 ${lapNum} 圈`:(lapNum>0?'驶向起点':'热身');
+  el.lapTime.textContent=fmt(lapTime);
+  el.totalTime.textContent=fmt(totalDone+(lapActive?lapTime:0));
+  el.bestTime.textContent=best?fmt(best):'--';
+  el.spFill.style.width=Math.min(100,ship.speed/7*100)+'%';
+  el.spTxt.textContent=(ship.speed*1.94).toFixed(1)+' kn';
+  let word,col;
+  if(aa<EYE0){word='顶风失速';col='#e2503c'}
+  else if(aoa<LUFF){word='太松·↑收帆';col='#e2503c'}
+  else if(aa<EYE1){word='脱离风眼中';col='#f0aa40'}
+  else if(eff>0.92){word='完美受力';col='#8fd8a0'}
+  else if(eff>0.55){word='良好';col='rgba(236,227,207,.85)'}
+  else{word='太紧·↓松帆';col='#f0aa40'}
+  el.effPct.textContent=Math.round(eff*100)+'%';
+  el.effWord.textContent=word;el.effWord.style.color=col;
+  el.aoaTxt.textContent=`帆${Math.round(sailMag*57.3)}° 攻${Math.round(aoa*57.3)}°`;
+  el.trimFill.style.width=(ship.trim*100).toFixed(0)+'%';
+  el.trimPct.textContent=Math.round(ship.trim*100)+'%';
+  const g=gates[gateIdx];
+  const gName=g.mark?(gates[gateIdx].inRing?'· 已锁定 过浮标':''):'';
+  el.objName.textContent=g.name+gName;
+  el.objDist.textContent=Math.round(Math.hypot(g.cx-ship.x,g.cy-ship.y))+'m';
+  el.gustTag.style.display=inG&&state==='race'?'block':'none';
+  drawCompass();drawDial();drawMap();updateGuides();
+}
+function bannerShow(txt){el.banner.textContent=txt;el.banner.classList.add('show');bannerT=2.8}
+function toast(txt){el.toast.textContent=txt;el.toast.classList.add('show');toastT=2}
+
+/* ================= 音频 ================= */
+const AU={ac:null,master:null,muted:false,
+  init(){
+    if(this.ac)return;
+    const ac=new(window.AudioContext||window.webkitAudioContext)();this.ac=ac;
+    const m=ac.createGain();m.gain.value=0.8;m.connect(ac.destination);this.master=m;
+    const buf=ac.createBuffer(1,ac.sampleRate*2,ac.sampleRate);
+    const d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+    this.noise=buf;
+    const mk=(type,f,q)=>{
+      const s=ac.createBufferSource();s.buffer=buf;s.loop=true;
+      const fl=ac.createBiquadFilter();fl.type=type;fl.frequency.value=f;fl.Q.value=q;
+      const g=ac.createGain();g.gain.value=0;
+      s.connect(fl);fl.connect(g);g.connect(m);s.start();return{g,fl};
+    };
+    const w=mk('lowpass',420,0.7);this.windGain=w.g;this.windLP=w.fl;
+    const h=mk('bandpass',950,1);this.hullGain=h.g;
+  },
+  env(){
+    if(!this.ac)return;
+    const t0=this.ac.currentTime;
+    this.master.gain.setTargetAtTime(this.muted?0:0.8,t0,0.1);
+    this.windGain.gain.setTargetAtTime(0.012+wind.spd*0.0028,t0,0.5);
+    this.windLP.frequency.setTargetAtTime(300+wind.spd*55,t0,0.5);
+    this.hullGain.gain.setTargetAtTime(Math.min(1,ship.speed/6)*0.09,t0,0.3);
+  },
+  beep(f,dur,type,vol,delay=0){
+    if(!this.ac)return;
+    const t0=this.ac.currentTime+delay,o=this.ac.createOscillator(),g=this.ac.createGain();
+    o.type=type;o.frequency.value=f;
+    g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(vol,t0+0.012);
+    g.gain.exponentialRampToValueAtTime(0.001,t0+dur);
+    o.connect(g);g.connect(this.master);o.start(t0);o.stop(t0+dur+0.05);
+  },
+  burst(f,dur,vol,q){
+    if(!this.ac)return;
+    const t0=this.ac.currentTime,s=this.ac.createBufferSource();s.buffer=this.noise;
+    const fl=this.ac.createBiquadFilter();fl.type='bandpass';fl.frequency.value=f;fl.Q.value=q;
+    const g=this.ac.createGain();
+    g.gain.setValueAtTime(vol,t0);g.gain.exponentialRampToValueAtTime(0.001,t0+dur);
+    s.connect(fl);fl.connect(g);g.connect(this.master);s.start(t0);s.stop(t0+dur+0.05);
+  },
+  gate(){this.beep(660,0.1,'triangle',0.24);this.beep(990,0.16,'triangle',0.2,0.08)},
+  lap(rec){[523,659,784,1046].forEach((f,i)=>this.beep(f,0.16,'triangle',0.18,i*0.09));if(rec)this.beep(1318,0.35,'sine',0.16,0.42)},
+  hit(){this.beep(64,0.3,'triangle',0.4);this.burst(180,0.3,0.4,0.7)},
+  tack(){this.burst(1700,0.14,0.16,2)},
+  count(n){this.beep(n===0?880:440,0.14,'square',0.1)}
+};
+
+/* ================= 输入 ================= */
+const inp={L:false,R:false,SI:false,SO:false};
+addEventListener('keydown',e=>{
+  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code))e.preventDefault();
+  if(e.repeat)return;
+  switch(e.code){
+    case'ArrowLeft':case'KeyA':inp.L=true;break;
+    case'ArrowRight':case'KeyD':inp.R=true;break;
+    case'ArrowUp':case'KeyW':inp.SI=true;break;
+    case'ArrowDown':case'KeyS':inp.SO=true;break;
+    case'KeyR':if(state==='race'&&!paused&&rescueCool<=0)rescue();break;
+    case'KeyM':if(AU.ac){AU.muted=!AU.muted;toast(AU.muted?'声音 · 关':'声音 · 开')}break;
+    case'KeyC':if(state!=='menu'){camCtl.manual=-1}break;
+    case'Escape':case'KeyP':
+      if(state==='race'){paused=!paused;$('pauseOv').classList.toggle('on',paused)}
+      break;
+  }
+});
+addEventListener('keyup',e=>{
+  switch(e.code){
+    case'ArrowLeft':case'KeyA':inp.L=false;break;
+    case'ArrowRight':case'KeyD':inp.R=false;break;
+    case'ArrowUp':case'KeyW':inp.SI=false;break;
+    case'ArrowDown':case'KeyS':inp.SO=false;break;
+  }
+});
+addEventListener('blur',()=>{if(state==='race'){paused=true;$('pauseOv').classList.add('on')}});
+function bindHold(id,prop){
+  const b=$(id);
+  b.addEventListener('pointerdown',e=>{e.preventDefault();inp[prop]=true;try{b.setPointerCapture(e.pointerId)}catch(_){}} );
+  ['pointerup','pointercancel','lostpointercapture'].forEach(ev=>b.addEventListener(ev,()=>inp[prop]=false));
+}
+bindHold('tL','L');bindHold('tR','R');bindHold('tSI','SI');bindHold('tSO','SO');
+if(matchMedia('(pointer:coarse)').matches)document.body.classList.add('touch');
+
+/* 相机 */
+const camCtl={yaw:Math.PI/2,pitch:0.42,dist:15,manual:99};
+const gl=renderer.domElement;
+const pts=new Map();let pinchD=0;
+gl.addEventListener('pointerdown',e=>{
+  pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  try{gl.setPointerCapture(e.pointerId)}catch(_){}
+});
+gl.addEventListener('pointermove',e=>{
+  if(!pts.has(e.pointerId))return;
+  const p=pts.get(e.pointerId);
+  if(pts.size===1){
+    camCtl.yaw+=(e.clientX-p.x)*0.005;
+    camCtl.pitch=clamp(camCtl.pitch+(e.clientY-p.y)*0.004,0.1,1.25);
+    camCtl.manual=5;
+  }
+  p.x=e.clientX;p.y=e.clientY;
+  if(pts.size===2){
+    const a=[...pts.values()],d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);
+    if(pinchD>0)camCtl.dist=clamp(camCtl.dist*pinchD/d,5,60);
+    pinchD=d;camCtl.manual=5;
+  }
+});
+const endPt=e=>{pts.delete(e.pointerId);pinchD=0};
+gl.addEventListener('pointerup',endPt);gl.addEventListener('pointercancel',endPt);
+gl.addEventListener('wheel',e=>{camCtl.dist=clamp(camCtl.dist*Math.exp(e.deltaY*0.001),5,60);camCtl.manual=5},{passive:true});
+
+/* ================= 流程 ================= */
+ $('btnStart').addEventListener('click',()=>{
+  AU.init();AU.ac.resume&&AU.ac.resume();
+  $('menu').classList.add('off');
+  $('hud').classList.add('on');
+  $('touchUI').classList.add('on');
+  gateIdx=0;lapActive=false;lapNum=0;lapTime=0;totalDone=0;
+  flashes.length=0;
+  gates.forEach(g=>g.inRing=false);
+  placeShipStart();refreshGateVisuals();
+  camCtl.yaw=ship.heading+Math.PI;camCtl.pitch=0.42;camCtl.dist=15;camCtl.manual=99;
+  state='count';cd=3.4;lastCd=-9;
+  el.cdNum.style.display='block';
+});
+ $('pauseOv').addEventListener('click',()=>{paused=false;$('pauseOv').classList.remove('on')});
+ $('menuBest').textContent=best?`最佳单圈 ${fmt(best)}`:'最佳单圈 --:--.-';
+
+/* ================= 主循环 ================= */
+refreshGateVisuals();
+placeShipStart();
+boat.position.set(ship.x,-0.1,ship.y);
+boat.rotation.y=-ship.heading;
+updateSailGeo(mainSail,11,9,1.18,2.3,0.85,-1,0,1,0.06);
+updateSailGeo(jibSail,9,8,0.55,1.72,0.78,1,0.15,1.4,0.05);
+
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(0.033,(now-last)/1000);last=now;
+  if(!paused){
+    t+=dt;
+    updateWind(dt);
+    if(state==='menu')autopilot(dt);
+    else if(state==='count'){
+      cd-=dt;
+      const n=Math.ceil(cd);
+      if(n!==lastCd&&n>0){
+        el.cdNum.textContent=n;AU.count(n);lastCd=n;
+        el.cdNum.style.animation='none';void el.cdNum.offsetWidth;el.cdNum.style.animation='cdp .9s ease-out';
+      }
+      if(cd<=0){
+        state='race';el.cdNum.textContent='起航';AU.count(0);rescueCool=0;
+        setTimeout(()=>{el.cdNum.style.display='none'},750);
+      }
+    }
+    else if(state==='race'){
+      lapTime+=dt;
+      if(rescueCool>0)rescueCool-=dt;
+    }
+    if(state==='count'){
+      boat.position.set(ship.x,waterH(ship.x,ship.y)-0.13,ship.y);
+      boat.rotation.y=-ship.heading;
+      boat.rotation.z=Math.sin(t*1.9)*0.015;
+      boat.rotation.x=Math.sin(t*1.4)*0.025;
+      mainRot.rotation.y=-ship.sailAng;
+      jibMesh.parent.rotation.y=ship.sailAng*0.85;
+      flagG.rotation.y=ship.heading-wind.dir-Math.PI+Math.sin(t*9)*0.18;
+    }else{
+      updateShip(dt,state==='race');
+    }
+    if(state!=='count')checkGates();
+    for(let i=0;i<FOAMN;i++){
+      const f=foamP[i];
+      if(!f.on){foamA[i]=0;continue}
+      f.t+=dt;f.x+=f.vx*dt;f.z+=f.vz*dt;f.vx*=0.95;f.vz*=0.95;
+      if(f.t>f.life){f.on=false;foamA[i]=0;continue}
+      foamPos[i*3]=f.x;foamPos[i*3+1]=waterH(f.x,f.z)+0.05;foamPos[i*3+2]=f.z;
+      foamSize[i]=f.r*6.5*(1+f.t*1.8);
+      foamA[i]=(1-f.t/f.life)*0.55;
+    }
+    foamGeo.attributes.position.needsUpdate=true;
+    foamGeo.attributes.aSize.needsUpdate=true;
+    foamGeo.attributes.aAlpha.needsUpdate=true;
+    updateWindFX(dt);
+    for(let i=flashes.length-1;i>=0;i--){
+      const f=flashes[i];f.t+=dt;
+      if(f.t>0.7)flashes.splice(i,1);
+    }
+    allBuoys.forEach((b,i)=>{
+      b.grp.position.y=waterH(b.x,b.y)+0.12+Math.sin(t*1.6+i*1.7)*0.05;
+      b.grp.rotation.z=Math.sin(t*1.3+i*1.7)*0.08;
+      b.grp.rotation.x=Math.cos(t*1.1+i*1.7)*0.08;
+    });
+    const curG=gates[gateIdx];
+    /* 环门视觉：环脉动；锁定后内圈亮起 */
+    if(curG.mark){
+      markRing.material.opacity=0.4+0.25*Math.sin(t*4.5);
+      markRing.scale.setScalar(1+0.015*Math.sin(t*4.5));
+      const locked=curG.inRing;
+      ringLock.material.opacity=lerp(ringLock.material.opacity,locked?0.18+0.08*Math.sin(t*6):0,1-Math.exp(-8*dt));
+      ringLock.position.set(curG.cx,0.34,curG.cy);
+      ringLock.visible=ringLock.material.opacity>0.01;
+    }else{
+      ringLock.visible=false;
+      gateBand.material.opacity=0.5+0.35*Math.sin(t*4.5);
+    }
+    const linePhase=(gateIdx===0||gateIdx===3);
+    lampMeshes.forEach((l,i)=>{
+      const hot=linePhase?i<2:i===gateIdx+1;
+      l.material=hot?matLampHot:matLampDim;
+      l.scale.setScalar(hot?1.2+0.35*Math.sin(t*6):1);
+    });
+    gateArrow.position.y=0.5+0.15*Math.sin(t*4);
+    gateLight.intensity=40+22*Math.sin(t*5);
+    for(const b of birds){
+      b.ph+=dt*b.sp;
+      b.g.position.set(Math.cos(b.ph)*b.r,b.h+Math.sin(t*0.7+b.r)*2,Math.sin(b.ph)*b.r);
+      b.g.rotation.y=-b.ph;
+      const flap=Math.sin(t*b.fl)*0.55;
+      b.wl.rotation.z=flap;b.wr.rotation.z=-flap;
+    }
+    if(bannerT>0){bannerT-=dt;if(bannerT<=0)el.banner.classList.remove('show')}
+    if(toastT>0){toastT-=dt;if(toastT<=0)el.toast.classList.remove('show')}
+  }
+  waterUni.uT.value=t;
+  waterUni.uW.value.set(Math.cos(wind.dir),Math.sin(wind.dir));
+  waterUni.uGD.value=wind.gust.on?wind.gust.d:-9999;
+  waterUni.uGW.value=wind.gust.w;
+  const tx=ship.x+ship.vx*0.5,tz=ship.y+ship.vy*0.5;
+  if(state==='menu'){
+    camCtl.yaw=t*0.13;
+    camCtl.pitch=0.3+Math.sin(t*0.1)*0.07;
+    camCtl.dist=11+Math.sin(t*0.07)*2.5;
+  }else if(!pts.size){
+    camCtl.manual-=dt;
+    if(camCtl.manual<=0){
+      const d=norm(ship.heading+Math.PI-camCtl.yaw);
+      camCtl.yaw+=d*(1-Math.exp(-1.4*dt));
+    }
+  }
+  const cp=Math.cos(camCtl.pitch),sp2=Math.sin(camCtl.pitch);
+  camera.position.set(
+    tx+Math.cos(camCtl.yaw)*cp*camCtl.dist,
+    sp2*camCtl.dist,
+    tz+Math.sin(camCtl.yaw)*cp*camCtl.dist
+  );
+  const minY=waterH(camera.position.x,camera.position.z)+0.55;
+  if(camera.position.y<minY)camera.position.y=minY;
+  camera.lookAt(tx,0.9,tz);
+  skyGroup.position.copy(camera.position);
+  renderer.render(scene,camera);
+  if(state!=='menu')updateHUD();
+  AU.env();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+
+window.__HYSF_OK=true;
+</script>
+</body>
+</html>
